@@ -14,9 +14,10 @@ import { auth } from "./services/firebase";
 import { AnimatePresence } from "framer-motion";
 import PageTransition from "./components/PageTransition";
 import ThemeLayout from "./components/ThemeLayout";
-import AdminLogin from "./pages/AdminLogin";
 import AdminRegister from "./pages/AdminRegister";
 import AdminDashboard from "./pages/AdminDashboard";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function isAuthenticated() {
   try {
@@ -52,7 +53,7 @@ function isAdminAuthenticated() {
 }
 
 function RequireAdmin({ children }) {
-  return isAdminAuthenticated() ? children : <Navigate to="/admin/login" replace />;
+  return isAdminAuthenticated() ? children : <Navigate to="/login" replace />;
 }
 
 function AnimatedRoutes() {
@@ -73,6 +74,22 @@ function AnimatedRoutes() {
           element={
             <PublicOnly>
               <PageTransition><Login /></PageTransition>
+            </PublicOnly>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicOnly>
+              <PageTransition><ForgotPassword /></PageTransition>
+            </PublicOnly>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <PublicOnly>
+              <PageTransition><ResetPassword /></PageTransition>
             </PublicOnly>
           }
         />
@@ -133,7 +150,6 @@ function AnimatedRoutes() {
           }
         />
         <Route path="/logout" element={<PageTransition><Logout /></PageTransition>} />
-        <Route path="/admin/login" element={<PageTransition><AdminLogin /></PageTransition>} />
         <Route path="/admin/register" element={<PageTransition><AdminRegister /></PageTransition>} />
         <Route
           path="/admin/dashboard"

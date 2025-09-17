@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
-import { login as apiLogin } from "../services/api";
+import { login as apiLogin, adminLogin as apiAdminLogin } from "../services/api";
 import { auth, googleProvider } from "../services/firebase";
 import { signInWithPopup, onAuthStateChanged, getIdTokenResult } from "firebase/auth";
 
@@ -26,6 +26,19 @@ export default function Login() {
 		}
 		try {
 			setLoading(true);
+			// 1) Try admin login first
+			try {
+				const adminData = await apiAdminLogin({ email: form.email, password: form.password });
+				if (adminData?.token) localStorage.setItem("mm_admin_token", adminData.token);
+				if (adminData?.admin) localStorage.setItem("mm_admin", JSON.stringify(adminData.admin));
+				// Successful admin login -> go to admin dashboard
+				navigate("/admin/dashboard");
+				return;
+			} catch (_) {
+				// Ignore admin error and fallback to user login
+			}
+
+			// 2) Fallback to normal user login
 			const { user } = await apiLogin(form); // API returns { user: { ... } }
 			const sessionUser = { ...user, authSource: "api" };
 			localStorage.setItem("mm_user", JSON.stringify(sessionUser));
@@ -191,6 +204,10 @@ export default function Login() {
 								className="input"
 							/>
 						</label>
+
+						<div style={{ textAlign: "right", marginTop: 4 }}>
+							<Link to="/forgot-password">Forgot password?</Link>
+						</div>
 
 						<button disabled={loading} type="submit" className="cta-btn" style={{ width: "100%", marginTop: 6 }}>
 							{loading ? "Signing in..." : "Sign in"}

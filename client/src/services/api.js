@@ -44,7 +44,26 @@ export async function register(payload) {
   });
 }
 
+export async function requestPasswordReset(payload) {
+  return request('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resetPassword(payload) {
+  return request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 // Admin API
+function adminHeaders() {
+  const token = localStorage.getItem('mm_admin_token') || '';
+  return { 'x-admin-token': token };
+}
+
 export async function adminLogin(payload) {
   return request('/admin/login', {
     method: 'POST',
@@ -60,40 +79,135 @@ export async function adminRegister(payload) {
 }
 
 export async function adminLogout() {
-  const token = localStorage.getItem('mm_admin_token') || '';
   return request('/admin/logout', {
     method: 'POST',
-    headers: { 'x-admin-token': token },
+    headers: adminHeaders(),
   });
 }
 
+// Users
 export async function adminListUsers() {
-  const token = localStorage.getItem('mm_admin_token') || '';
-  return request('/admin/users', {
-    headers: { 'x-admin-token': token },
-  });
+  return request('/admin/users', { headers: adminHeaders() });
 }
-
 export async function adminGetUser(id) {
-  const token = localStorage.getItem('mm_admin_token') || '';
-  return request(`/admin/users/${id}`, {
-    headers: { 'x-admin-token': token },
-  });
+  return request(`/admin/users/${id}`, { headers: adminHeaders() });
 }
-
 export async function adminUpdateUser(id, payload) {
-  const token = localStorage.getItem('mm_admin_token') || '';
   return request(`/admin/users/${id}`, {
     method: 'PUT',
-    headers: { 'x-admin-token': token },
+    headers: adminHeaders(),
     body: JSON.stringify(payload),
   });
 }
-
 export async function adminDeleteUser(id) {
-  const token = localStorage.getItem('mm_admin_token') || '';
   return request(`/admin/users/${id}`, {
     method: 'DELETE',
-    headers: { 'x-admin-token': token },
+    headers: adminHeaders(),
   });
+}
+
+// Products (admin)
+export async function adminListProducts() {
+  return request('/admin/products', { headers: adminHeaders() });
+}
+export async function adminGetProduct(id) {
+  return request(`/admin/products/${id}`, { headers: adminHeaders() });
+}
+export async function adminCreateProduct(payload) {
+  return request('/admin/products', {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+export async function adminUpdateProduct(id, payload) {
+  return request(`/admin/products/${id}`, {
+    method: 'PUT',
+    headers: adminHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+export async function adminDeleteProduct(id) {
+  return request(`/admin/products/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
+  });
+}
+
+// Posts (admin)
+export async function adminListPosts() {
+  return request('/admin/posts', { headers: adminHeaders() });
+}
+export async function adminGetPost(id) {
+  return request(`/admin/posts/${id}`, { headers: adminHeaders() });
+}
+export async function adminCreatePost(payload) {
+  return request('/admin/posts', {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+export async function adminUpdatePost(id, payload) {
+  return request(`/admin/posts/${id}`, {
+    method: 'PUT',
+    headers: adminHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+export async function adminDeletePost(id) {
+  return request(`/admin/posts/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
+  });
+}
+
+// Messages (admin)
+export async function adminListMessages(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/admin/messages${query ? `?${query}` : ''}`, { headers: adminHeaders() });
+}
+export async function adminDeleteMessage(id) {
+  return request(`/admin/messages/${id}`, { method: 'DELETE', headers: adminHeaders() });
+}
+
+// Questions (admin)
+export async function adminListQuestions(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/admin/questions${query ? `?${query}` : ''}`, { headers: adminHeaders() });
+}
+export async function adminCreateQuestion(payload) {
+  return request('/admin/questions', { method: 'POST', headers: adminHeaders(), body: JSON.stringify(payload) });
+}
+export async function adminUpdateQuestion(id, payload) {
+  return request(`/admin/questions/${id}`, { method: 'PUT', headers: adminHeaders(), body: JSON.stringify(payload) });
+}
+export async function adminDeleteQuestion(id) {
+  return request(`/admin/questions/${id}`, { method: 'DELETE', headers: adminHeaders() });
+}
+
+// Public Products
+export async function listProducts(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/products${query ? `?${query}` : ''}`);
+}
+export async function getProduct(id) {
+  return request(`/products/${id}`);
+}
+
+// Public Posts
+export async function listPosts() {
+  return request('/posts');
+}
+export async function getPost(id) {
+  return request(`/posts/${id}`);
+}
+
+// Public Messages
+export async function listMessages(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/messages${query ? `?${query}` : ''}`);
+}
+export async function createMessage(payload) {
+  return request('/messages', { method: 'POST', body: JSON.stringify(payload) });
 }

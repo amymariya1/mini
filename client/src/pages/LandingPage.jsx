@@ -42,9 +42,7 @@ export default function LandingPage() {
                       </svg>
                     </button>
                   </Link>
-                  <Link to="/admin/login">
-                    <button className="cta-btn secondary">Admin Login</button>
-                  </Link>
+
                 </div>
                 <div className="trust-indicators">
                   <div className="trust-item">

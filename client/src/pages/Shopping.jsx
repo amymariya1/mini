@@ -3,114 +3,7 @@ import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import "../App.css";
-
-// Sample product data
-const PRODUCTS = [
-  {
-    id: 1,
-    name: "Meditation Cushion Set",
-    price: 89.99,
-    originalPrice: 129.99,
-    rating: 4.8,
-    reviews: 1247,
-    image: "🧘‍♀️",
-    category: "Meditation",
-    description: "Premium zafu and zabuton meditation cushion set for comfortable sitting practice",
-    inStock: true,
-    badge: "Best Seller"
-  },
-  {
-    id: 2,
-    name: "Essential Oil Diffuser",
-    price: 45.99,
-    originalPrice: 65.99,
-    rating: 4.6,
-    reviews: 892,
-    image: "https://img.freepik.com/premium-photo/oil-diffuser-white-background_894067-23935.jpg?w=2000",
-    category: "Aromatherapy",
-    description: "Ultrasonic essential oil diffuser with LED lights and timer function",
-    inStock: true,
-    badge: "Sale"
-  },
-  {
-    id: 3,
-    name: "Weighted Blanket",
-    price: 129.99,
-    originalPrice: 179.99,
-    rating: 4.9,
-    reviews: 2156,
-    image: "🛏️",
-    category: "Sleep",
-    description: "15lb weighted blanket for better sleep and anxiety relief",
-    inStock: true,
-    badge: "Prime"
-  },
-  {
-    id: 4,
-    name: "Yoga Mat Pro",
-    price: 79.99,
-    originalPrice: 99.99,
-    rating: 4.7,
-    reviews: 1834,
-    image: "🧘",
-    category: "Yoga",
-    description: "Non-slip eco-friendly yoga mat with carrying strap",
-    inStock: false,
-    badge: "Eco"
-  },
-  {
-    id: 5,
-    name: "Crystal Healing Set",
-    price: 59.99,
-    originalPrice: 79.99,
-    rating: 4.5,
-    reviews: 567,
-    image: "💎",
-    category: "Crystals",
-    description: "7-piece crystal healing set with guidebook and storage bag",
-    inStock: true,
-    badge: "New"
-  },
-  {
-    id: 6,
-    name: "Sleep Sound Machine",
-    price: 69.99,
-    originalPrice: 89.99,
-    rating: 4.8,
-    reviews: 1123,
-    image: "🌊",
-    category: "Sleep",
-    description: "White noise machine with 20+ nature sounds and timer",
-    inStock: true,
-    badge: "Popular"
-  },
-  {
-    id: 7,
-    name: "Mindfulness Journal",
-    price: 24.99,
-    originalPrice: 34.99,
-    rating: 4.6,
-    reviews: 445,
-    image: "📔",
-    category: "Books",
-    description: "365-day guided mindfulness journal with daily prompts",
-    inStock: true,
-    badge: "Guide"
-  },
-  {
-    id: 8,
-    name: "Herbal Tea Collection",
-    price: 39.99,
-    originalPrice: 49.99,
-    rating: 4.7,
-    reviews: 789,
-    image: "🍵",
-    category: "Wellness",
-    description: "Organic herbal tea collection with 12 calming blends",
-    inStock: true,
-    badge: "Organic"
-  }
-];
+import { listProducts } from "../services/api";
 
 const CATEGORIES = [
   { name: "All", value: "all" },
@@ -124,8 +17,8 @@ const CATEGORIES = [
 ];
 
 export default function Shopping() {
-  const [products, setProducts] = useState(PRODUCTS);
-  const [filteredProducts, setFilteredProducts] = useState(PRODUCTS);
+  const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("featured");
@@ -133,9 +26,38 @@ export default function Shopping() {
   const [showCart, setShowCart] = useState(false);
   const navigate = useNavigate();
 
+  // Load from backend
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await listProducts();
+        const list = (data.products || []).map(p => ({
+          id: p._id,
+          name: p.name,
+          price: p.price,
+          originalPrice: p.originalPrice || 0,
+          rating: p.rating || 0,
+          reviews: p.reviews || 0,
+          image: p.image || '🛍️',
+          category: p.category || 'General',
+          description: p.description || '',
+          inStock: p.inStock !== false,
+          badge: p.badge || ''
+        }));
+        setProducts(list);
+        setFilteredProducts(list);
+      } catch (err) {
+        // keep empty state if API unavailable
+        setProducts([]);
+        setFilteredProducts([]);
+      }
+    }
+    load();
+  }, []);
+
   // Filter products based on category and search
   useEffect(() => {
-    let filtered = products;
+    let filtered = [...products];
 
     if (selectedCategory !== "all") {
       filtered = filtered.filter(product => product.category === selectedCategory);
@@ -143,24 +65,24 @@ export default function Shopping() {
 
     if (searchTerm) {
       filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchTerm.toLowerCase())
+        (product.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (product.description || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Sort products
     switch (sortBy) {
       case "price-low":
-        filtered.sort((a, b) => a.price - b.price);
+        filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
         break;
       case "price-high":
-        filtered.sort((a, b) => b.price - a.price);
+        filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
         break;
       case "rating":
-        filtered.sort((a, b) => b.rating - a.rating);
+        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       case "newest":
-        filtered.sort((a, b) => b.id - a.id);
+        filtered.sort((a, b) => String(b.id).localeCompare(String(a.id))); // fallback if no createdAt here
         break;
       default:
         // Keep original order for "featured"
@@ -201,7 +123,7 @@ export default function Shopping() {
   };
 
   const getTotalPrice = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cart.reduce((total, item) => total + ((item.price || 0) * item.quantity), 0);
   };
 
   const getTotalItems = () => {
@@ -353,11 +275,11 @@ export default function Shopping() {
                     
                     <div className="product-rating">
                       <span className="stars">
-                        {'★'.repeat(Math.floor(product.rating))}
-                        {'☆'.repeat(5 - Math.floor(product.rating))}
+                        {'★'.repeat(Math.floor(product.rating || 0))}
+                        {'☆'.repeat(5 - Math.floor(product.rating || 0))}
                       </span>
                       <span className="rating-text">
-                        {product.rating} ({product.reviews})
+                        {(product.rating || 0)} ({product.reviews || 0})
                       </span>
                     </div>
 

@@ -3,52 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import "../App.css";
-
-// Sample messages for the shared chat room
-const SAMPLE_MESSAGES = [
-  {
-    id: 1,
-    text: "Welcome to our wellness community chat! 🌟",
-    sender: "WellnessBot",
-    timestamp: "2:00 PM",
-    isSystem: true
-  },
-  {
-    id: 2,
-    text: "Feel free to share your experiences, ask questions, or support others on their wellness journey",
-    sender: "WellnessBot",
-    timestamp: "2:01 PM",
-    isSystem: true
-  },
-  {
-    id: 3,
-    text: "Hi everyone! I'm new here and looking for some meditation tips",
-    sender: "Alex",
-    timestamp: "2:15 PM",
-    isSystem: false
-  },
-  {
-    id: 4,
-    text: "Welcome Alex! I'd recommend starting with 5-minute breathing exercises",
-    sender: "Sarah",
-    timestamp: "2:17 PM",
-    isSystem: false
-  },
-  {
-    id: 5,
-    text: "The 4-7-8 breathing technique works great for me before bed 😴",
-    sender: "Mike",
-    timestamp: "2:20 PM",
-    isSystem: false
-  },
-  {
-    id: 6,
-    text: "Thanks for the suggestions! I'll try them tonight",
-    sender: "Alex",
-    timestamp: "2:22 PM",
-    isSystem: false
-  }
-];
+import { listMessages as apiListMessages, createMessage as apiCreateMessage } from "../services/api";
 
 const QUICK_REPLIES = [
   "Hello everyone! 👋",
@@ -71,7 +26,7 @@ const ONLINE_USERS = [
 ];
 
 export default function Chat() {
-  const [messages, setMessages] = useState(SAMPLE_MESSAGES);
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState(ONLINE_USERS);
@@ -82,23 +37,58 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  async function loadMessages() {
+    try {
+      const data = await apiListMessages({ room: 'global', limit: 200 });
+      // Backend returns newest first, reverse for display oldest->newest
+      const list = (data.messages || []).slice().reverse().map(m => ({
+        id: m._id,
+        text: m.text,
+        sender: m.senderName || 'User',
+        timestamp: new Date(m.createdAt || m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isSystem: !!m.isSystem,
+      }));
+      setMessages(list);
+    } catch (err) {
+      // Fallback to simple welcome messages if API not available
+      setMessages([
+        { id: 1, text: "Welcome to our wellness community chat! 🌟", sender: "WellnessBot", timestamp: "--:--", isSystem: true },
+      ]);
+    }
+  }
+
+  useEffect(() => {
+    loadMessages();
+    // Optionally, polling every 10s until sockets are added
+    const t = setInterval(loadMessages, 10000);
+    return () => clearInterval(t);
+  }, []);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
-
-    const message = {
-      id: Date.now(),
+    const optimistic = {
+      id: 'tmp-' + Date.now(),
       text: newMessage,
       sender: user.name || "User",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isSystem: false
     };
-
-    setMessages(prev => [...prev, message]);
+    setMessages(prev => [...prev, optimistic]);
+    const toSend = newMessage;
     setNewMessage("");
+    try {
+      await apiCreateMessage({ text: toSend, room: 'global', senderName: user.name || 'User' });
+      // Reload from server to get real _id and consistent ordering
+      await loadMessages();
+    } catch (err) {
+      // rollback optimistic add on error
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      alert(err.message || 'Failed to send');
+    }
   };
 
   const handleKeyPress = (e) => {
