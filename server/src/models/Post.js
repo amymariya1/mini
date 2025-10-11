@@ -15,6 +15,16 @@ const postSchema = new mongoose.Schema(
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
     reviewedAt: { type: Date, default: null },
     rejectionReason: { type: String, default: '' },
+    // Social
+    likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    comments: [
+      {
+        author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+        authorName: { type: String, default: '' },
+        text: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -1,12 +1,20 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { register as apiRegister } from "../services/api";
+import { registerTherapist as apiRegisterTherapist } from "../services/api";
 
-export default function Register() {
+export default function TherapistRegister() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "", age: "" });
+  const [form, setForm] = useState({ 
+    name: "", 
+    email: "", 
+    password: "", 
+    confirmPassword: "", 
+    age: "",
+    license: "" // Additional field for therapists
+  });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   function handleChange(e) {
@@ -27,7 +35,9 @@ export default function Register() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!form.name || !form.email || !form.password || !form.confirmPassword || form.age === "") {
+    
+    // Validate all fields are filled
+    if (!form.name || !form.email || !form.password || !form.confirmPassword || form.age === "" || !form.license) {
       setError("Please fill in all fields.");
       return;
     }
@@ -38,19 +48,35 @@ export default function Register() {
       return;
     }
     
+    // Check passwords match
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
+    
+    // Validate age
     const ageNum = Number(form.age);
     if (Number.isNaN(ageNum) || ageNum < 0 || ageNum > 150) {
       setError("Please enter a valid age.");
       return;
     }
+    
     try {
       setLoading(true);
-      await apiRegister({ name: form.name, email: form.email, password: form.password, age: ageNum });
-      navigate("/login");
+      // Use the specific therapist registration API function
+      const response = await apiRegisterTherapist({ 
+        name: form.name, 
+        email: form.email, 
+        password: form.password, 
+        age: ageNum,
+        license: form.license
+      });
+      
+      if (response.success) {
+        setSuccess(true);
+      } else {
+        setError(response.message || "Registration failed");
+      }
     } catch (err) {
       // Handle specific error for duplicate email
       if (err.message === "Email already registered") {
@@ -63,10 +89,41 @@ export default function Register() {
     }
   }
 
+  if (success) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 8 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ duration: 0.25 }} 
+        style={{ maxWidth: 480, margin: "64px auto", padding: "0 16px", textAlign: "center" }}
+      >
+        <h2 style={{ marginBottom: 16 }}>Registration Successful!</h2>
+        <p className="subtle" style={{ marginBottom: 24 }}>
+          Thank you for registering as a therapist. Your account is pending admin approval.
+        </p>
+        <p style={{ marginBottom: 24 }}>
+          You will receive an email notification once your account has been approved.
+        </p>
+        <button 
+          onClick={() => navigate("/login")}
+          className="cta-btn"
+          style={{ width: "100%", marginTop: 6 }}
+        >
+          Go to Login
+        </button>
+      </motion.div>
+    );
+  }
+
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} style={{ maxWidth: 480, margin: "64px auto", padding: "0 16px" }}>
-      <h2 style={{ marginBottom: 16 }}>Create your account</h2>
-      <p className="subtle" style={{ marginBottom: 24 }}>Start your journey with MindMirror</p>
+    <motion.div 
+      initial={{ opacity: 0, y: 8 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      transition={{ duration: 0.25 }} 
+      style={{ maxWidth: 480, margin: "64px auto", padding: "0 16px" }}
+    >
+      <h2 style={{ marginBottom: 16 }}>Therapist Registration</h2>
+      <p className="subtle" style={{ marginBottom: 24 }}>Join MindMirror as a mental health professional</p>
 
       {error && (
         <div style={{
@@ -100,6 +157,18 @@ export default function Register() {
             value={form.email}
             onChange={handleChange}
             placeholder="you@example.com"
+            className="input"
+          />
+        </label>
+
+        <label>
+          <div style={{ fontSize: 14, marginBottom: 6 }}>License Number</div>
+          <input
+            type="text"
+            name="license"
+            value={form.license}
+            onChange={handleChange}
+            placeholder="Professional License Number"
             className="input"
           />
         </label>
@@ -143,24 +212,12 @@ export default function Register() {
         </label>
 
         <button disabled={loading} type="submit" className="cta-btn" style={{ width: "100%", marginTop: 6, color: "black" }}>
-          {loading ? "Creating..." : "Create account"}
+          {loading ? "Creating..." : "Register as Therapist"}
         </button>
       </form>
 
       <div style={{ marginTop: 16, fontSize: 14 }}>
         Already have an account? <Link to="/login">Sign in</Link>
-      </div>
-      
-      {/* Therapist registration option */}
-      <div style={{ marginTop: 24, textAlign: "center" }}>
-        <button 
-          type="button" 
-          onClick={() => navigate("/therapist-register")}
-          className="btn btn-secondary"
-          style={{ padding: "10px 20px" }}
-        >
-          Register as Therapist
-        </button>
       </div>
     </motion.div>
   );

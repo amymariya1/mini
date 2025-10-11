@@ -1,59 +1,50 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { adminRegister } from '../services/api';
+// client/src/pages/AdminRegister.jsx
+import React, { useState } from "react";
+import axios from "axios";
 
-export default function AdminRegister() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+const AdminRegister = () => {
+  const [formData, setFormData] = useState({ name: "", email: "", password: "", confirmPassword: "" });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const navigate = useNavigate();
 
-  async function handleSubmit(e) {
+  const handleChange = (e) => setFormData(s => ({ ...s, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
+    setError(""); setSuccess("");
+    if (formData.password !== formData.confirmPassword) { setError("Passwords do not match"); return; }
     try {
-      const data = await adminRegister({ name, email, password });
-      setSuccess('Registered! You can now login.');
-      // Optionally auto-redirect to login after a short delay
-      setTimeout(() => navigate('/admin/login'), 800);
+      setLoading(true);
+      const res = await axios.post(`${API_BASE}/api/admin/register`, {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password
+      });
+      setSuccess("Admin registered successfully!");
+      setFormData({ name: "", email: "", password: "", confirmPassword: "" });
+      console.log(res.data);
     } catch (err) {
-      setError(err.message || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
-  }
+      setError(err.response?.data?.message || err.message || "Registration failed");
+    } finally { setLoading(false); }
+  };
 
   return (
-    <div className="container" style={{ maxWidth: 460, margin: '60px auto' }}>
+    <div style={{ maxWidth: 480, margin: "48px auto", padding: 20 }}>
       <h2>Admin Registration</h2>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
-        <label>
-          <div>Name</div>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        <label>
-          <div>Email</div>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          <div>Password</div>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        {error && <div style={{ color: 'red' }}>{error}</div>}
-        {success && <div style={{ color: 'green' }}>{success}</div>}
-        <button type="submit" disabled={loading} className="primary-btn">
-          {loading ? 'Creating account...' : 'Create Admin Account'}
-        </button>
-        <div style={{ marginTop: 8 }}>
-          <span>Already have an account? </span>
-          <Link to="/admin/login">Login</Link>
-        </div>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
+        <input name="name" value={formData.name} onChange={handleChange} placeholder="Name" required />
+        <input name="email" value={formData.email} onChange={handleChange} placeholder="Email" type="email" required/>
+        <input name="password" value={formData.password} onChange={handleChange} placeholder="Password" type="password" required/>
+        <input name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm password" type="password" required/>
+        {error && <div style={{ color: "red" }}>{error}</div>}
+        {success && <div style={{ color: "green" }}>{success}</div>}
+        <button type="submit" disabled={loading}>{loading ? "Registering..." : "Register"}</button>
       </form>
     </div>
   );
-}
+};
+
+export default AdminRegister;

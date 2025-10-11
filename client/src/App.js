@@ -9,25 +9,36 @@ import Assessments from "./pages/Assessments";
 import Shopping from "./pages/Shopping";
 import ProductDetail from "./pages/ProductDetail";
 import Chat from "./pages/Chat";
+import Blog from "./pages/Blog";
+import BlogDetail from "./pages/BlogDetail";
+import BlogMine from "./pages/BlogMine";
 import Logout from "./pages/Logout";
 import { auth } from "./services/firebase";
 import { AnimatePresence } from "framer-motion";
 import PageTransition from "./components/PageTransition";
 import ThemeLayout from "./components/ThemeLayout";
 import AdminRegister from "./pages/AdminRegister";
+import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Calendar from "./pages/Calendar";
+import JournalEntry from "./pages/JournalEntry";
+import HabitTracker from "./pages/HabitTracker";
+import CheckoutAddress from "./pages/CheckoutAddress";
+import Inventory from "./pages/Inventory";
+import TherapistDashboard from "./pages/TherapistDashboard";
+import TherapistRegister from "./pages/TherapistRegister"; // ✅ added import
 
 function isAuthenticated() {
   try {
-    const fb = !!auth.currentUser; // Firebase session
+    const fb = !!auth.currentUser;
     const raw = localStorage.getItem("mm_user");
     let api = false;
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        api = parsed && parsed.authSource === "api"; // only trust API-sourced sessions
+        api = parsed && parsed.authSource === "api";
       } catch (_) {
         api = false;
       }
@@ -46,14 +57,16 @@ function PublicOnly({ children }) {
   return isAuthenticated() ? <Navigate to="/home" replace /> : children;
 }
 
+// ✅ Admin authentication check
 function isAdminAuthenticated() {
-  const token = localStorage.getItem('mm_admin_token');
-  const admin = localStorage.getItem('mm_admin');
+  const token = localStorage.getItem("mm_admin_token");
+  const admin = localStorage.getItem("mm_admin");
   return !!token && !!admin;
 }
 
+// ✅ Protect admin routes (redirect to admin login if not authenticated)
 function RequireAdmin({ children }) {
-  return isAdminAuthenticated() ? children : <Navigate to="/login" replace />;
+  return isAdminAuthenticated() ? children : <Navigate to="/admin/login" replace />;
 }
 
 function AnimatedRoutes() {
@@ -61,6 +74,7 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
+        {/* Public Routes */}
         <Route
           path="/"
           element={
@@ -74,6 +88,22 @@ function AnimatedRoutes() {
           element={
             <PublicOnly>
               <PageTransition><Login /></PageTransition>
+            </PublicOnly>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <PublicOnly>
+              <PageTransition><Register /></PageTransition>
+            </PublicOnly>
+          }
+        />
+        <Route
+          path="/therapist-register"
+          element={
+            <PublicOnly>
+              <PageTransition><TherapistRegister /></PageTransition>
             </PublicOnly>
           }
         />
@@ -93,14 +123,8 @@ function AnimatedRoutes() {
             </PublicOnly>
           }
         />
-        <Route
-          path="/signup"
-          element={
-            <PublicOnly>
-              <PageTransition><Register /></PageTransition>
-            </PublicOnly>
-          }
-        />
+
+        {/* Authenticated User Routes */}
         <Route
           path="/home"
           element={
@@ -134,6 +158,14 @@ function AnimatedRoutes() {
           }
         />
         <Route
+          path="/checkout/address"
+          element={
+            <RequireAuth>
+              <PageTransition><CheckoutAddress /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/product/:id"
           element={
             <RequireAuth>
@@ -142,15 +174,69 @@ function AnimatedRoutes() {
           }
         />
         <Route
-          path="/chat"
+          path="/calendar"
           element={
             <RequireAuth>
-              <PageTransition><Chat /></PageTransition>
+              <PageTransition><Calendar /></PageTransition>
             </RequireAuth>
           }
         />
+        <Route
+          path="/habits"
+          element={
+            <RequireAuth>
+              <PageTransition><HabitTracker /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/journal/:date"
+          element={
+            <RequireAuth>
+              <PageTransition><JournalEntry /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/blog"
+          element={
+            <RequireAuth>
+              <PageTransition><Blog /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/blog/mine"
+          element={
+            <RequireAuth>
+              <PageTransition><BlogMine /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/blog/:id"
+          element={
+            <RequireAuth>
+              <PageTransition><BlogDetail /></PageTransition>
+            </RequireAuth>
+          }
+        />
+
+        {/* ✅ Therapist Route */}
+        <Route
+          path="/therapist"
+          element={
+            <RequireAuth>
+              <PageTransition><TherapistDashboard /></PageTransition>
+            </RequireAuth>
+          }
+        />
+
         <Route path="/logout" element={<PageTransition><Logout /></PageTransition>} />
+
+        {/* ✅ Admin Routes */}
         <Route path="/admin/register" element={<PageTransition><AdminRegister /></PageTransition>} />
+        <Route path="/admin/login" element={<PageTransition><AdminLogin /></PageTransition>} />
         <Route
           path="/admin/dashboard"
           element={
@@ -159,6 +245,16 @@ function AnimatedRoutes() {
             </RequireAdmin>
           }
         />
+        <Route
+          path="/admin/inventory"
+          element={
+            <RequireAdmin>
+              <PageTransition><Inventory /></PageTransition>
+            </RequireAdmin>
+          }
+        />
+
+        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>

@@ -1,559 +1,690 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
 import {
-  // Users
   adminListUsers,
-  adminDeleteUser,
-  adminUpdateUser,
-  adminLogout,
-  // Products
   adminListProducts,
-  adminCreateProduct,
-  adminUpdateProduct,
-  adminDeleteProduct,
-  // Posts
   adminListPosts,
-  adminCreatePost,
-  adminUpdatePost,
-  adminDeletePost,
-  // Messages
-  adminListMessages,
-  adminDeleteMessage,
-  // Questions
   adminListQuestions,
-  adminCreateQuestion,
-  adminUpdateQuestion,
+  adminListPendingTherapists,
+  adminApproveTherapist,
+  adminLogout,
+  adminToggleUserStatus,
+  adminDeleteProduct,
+  adminDeletePost,
   adminDeleteQuestion,
-} from '../services/api';
+  adminCreateProduct,
+  adminUpdateProductStock,
+  createTherapist,
+} from "../services/api";
+import "../styles/AdminDashboard.css";
+
+// === ICONS ===
+const UsersIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const ProductsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M6 2L3 6v14a2 2 0 0 0-2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <path d="M16 10a4 4 0 0 1-8 0" />
+  </svg>
+);
+
+const PostsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+
+const QuestionsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const TherapistsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="9" cy="7" r="4"></circle>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    <circle cx="16" cy="16" r="2"></circle>
+    <path d="M20 16h-4"></path>
+    <path d="M18 14v4"></path>
+  </svg>
+);
+
+const PendingIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"></circle>
+    <polyline points="12 6 12 12 16 14"></polyline>
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
+
+const CATEGORY_OPTIONS = ["Wellness", "Equipment", "Books", "Supplements", "Courses", "Other"];
+const NAV_ITEMS = [
+  { id: "users", label: "Users", icon: <UsersIcon /> },
+  { id: "therapists", label: "Therapists", icon: <TherapistsIcon /> },
+  { id: "pending-therapists", label: "Pending Therapists", icon: <PendingIcon /> },
+  { id: "products", label: "Products", icon: <ProductsIcon /> },
+  { id: "posts", label: "Posts", icon: <PostsIcon /> },
+  { id: "questions", label: "Questions", icon: <QuestionsIcon /> },
+];
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState('users'); // users | products | posts | messages | questions
-
-  // Shared
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
-  const navigate = useNavigate();
-
-  // Users state
+  const [tab, setTab] = useState("users");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [users, setUsers] = useState([]);
-  const [userQuery, setUserQuery] = useState('');
-
-  // Products state
+  const [therapists, setTherapists] = useState([]);
+  const [pendingTherapists, setPendingTherapists] = useState([]);
   const [products, setProducts] = useState([]);
-
-  // Posts state
   const [posts, setPosts] = useState([]);
-
-  // Messages state
-  const [messages, setMessages] = useState([]);
-
-  // Questions state
   const [questions, setQuestions] = useState([]);
-  const [questionFilterActive, setQuestionFilterActive] = useState('all'); // all | active | inactive
+  const [search, setSearch] = useState("");
+  const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, totalProducts: 0, totalPosts: 0 });
 
-  // ===== Loaders =====
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddTherapist, setShowAddTherapist] = useState(false);
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+  const [showRestockSuggestions, setShowRestockSuggestions] = useState(false);
+
+  const [therapistName, setTherapistName] = useState("");
+  const [therapistEmail, setTherapistEmail] = useState("");
+  const [therapistPassword, setTherapistPassword] = useState("");
+  const [therapistAge, setTherapistAge] = useState("");
+  const [therapistLicense, setTherapistLicense] = useState("");
+
   async function loadUsers() {
-    setError('');
     setLoading(true);
     try {
       const data = await adminListUsers();
-      setUsers(data.users || []);
+      const usersData = data.users || [];
+      setUsers(usersData.filter(u => u.userType !== "therapist"));
+      setTherapists(usersData.filter(u => u.userType === "therapist" && u.isApproved));
+      setStats(prev => ({
+        ...prev,
+        totalUsers: usersData.filter(u => u.userType !== "therapist").length,
+        activeUsers: usersData.filter(u => u.userType !== "therapist" && u.isActive).length
+      }));
     } catch (err) {
-      setError(err.message || 'Failed to load users');
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadPendingTherapists() {
+    setLoading(true);
+    try {
+      const data = await adminListPendingTherapists();
+      if (data.success) {
+        setPendingTherapists(data.therapists || []);
+      } else {
+        setError(data.message || "Failed to load pending therapists");
+      }
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
   async function loadProducts() {
-    setError('');
     setLoading(true);
     try {
       const data = await adminListProducts();
       setProducts(data.products || []);
     } catch (err) {
-      setError(err.message || 'Failed to load products');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
   async function loadPosts() {
-    setError('');
     setLoading(true);
     try {
       const data = await adminListPosts();
       setPosts(data.posts || []);
     } catch (err) {
-      setError(err.message || 'Failed to load posts');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadMessages() {
-    setError('');
-    setLoading(true);
-    try {
-      const data = await adminListMessages({ room: 'global', limit: 200 });
-      setMessages(data.messages || []);
-    } catch (err) {
-      setError(err.message || 'Failed to load messages');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
   async function loadQuestions() {
-    setError('');
     setLoading(true);
     try {
-      const params = {};
-      if (questionFilterActive !== 'all') params.active = (questionFilterActive === 'active');
-      const data = await adminListQuestions(params);
+      const data = await adminListQuestions();
       setQuestions(data.questions || []);
     } catch (err) {
-      setError(err.message || 'Failed to load questions');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  // Initial + tab changes
-  useEffect(() => {
-    if (tab === 'users') loadUsers();
-    if (tab === 'products') loadProducts();
-    if (tab === 'posts') loadPosts();
-    if (tab === 'messages') loadMessages();
-    if (tab === 'questions') loadQuestions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, questionFilterActive]);
-
-  // ===== Users handlers =====
-  const filteredUsers = useMemo(() => {
-    const q = userQuery.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(u => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q));
-  }, [users, userQuery]);
-
-  async function handleUserDelete(id) {
-    if (!window.confirm('Delete this user?')) return;
+  async function handleToggleUserStatus(id, newStatus) {
+    if (!window.confirm(`Are you sure you want to ${newStatus ? "activate" : "deactivate"} this user?`)) return;
     try {
-      await adminDeleteUser(id);
-      setInfo('User deleted');
-      await loadUsers();
+      const response = await adminToggleUserStatus(id);
+      if (response?.user) {
+        setUsers(users.map(u => (u._id === id ? { ...u, isActive: response.user.isActive } : u)));
+      }
     } catch (err) {
-      setError(err.message || 'Delete failed');
+      alert("Failed to update user: " + err.message);
     }
   }
 
-  async function handleUserEdit(u) {
-    const name = window.prompt('Name', u.name || '');
-    if (name === null) return;
-    const email = window.prompt('Email', u.email || '');
-    if (email === null) return;
+  async function handleToggleTherapistStatus(id, newStatus) {
+    if (!window.confirm(`Are you sure you want to ${newStatus ? "activate" : "deactivate"} this therapist?`)) return;
     try {
-      await adminUpdateUser(u._id || u.id, { name, email });
-      setInfo('User updated');
-      await loadUsers();
+      const response = await adminToggleUserStatus(id);
+      if (response?.user) {
+        setTherapists(therapists.map(t => (t._id === id ? { ...t, isActive: response.user.isActive } : t)));
+      }
     } catch (err) {
-      setError(err.message || 'Update failed');
+      alert("Failed to update therapist: " + err.message);
     }
   }
 
-  // ===== Products handlers =====
-  async function handleProductCreate() {
-    const name = window.prompt('Product name');
-    if (!name) return;
-    const priceStr = window.prompt('Price', '0');
-    if (priceStr === null) return;
-    const price = Number(priceStr) || 0;
-    const category = window.prompt('Category', 'General') || 'General';
+  async function handleApproveTherapist(id) {
+    if (!window.confirm("Approve this therapist?")) return;
     try {
-      await adminCreateProduct({ name, price, category });
-      setInfo('Product created');
-      await loadProducts();
+      const data = await adminApproveTherapist(id);
+      if (data.success) {
+        alert("✅ Therapist approved successfully!");
+        // Reload pending therapists and approved therapists
+        loadPendingTherapists();
+        loadUsers();
+      } else {
+        alert(data.message || "Error approving therapist");
+      }
     } catch (err) {
-      setError(err.message || 'Create failed');
+      alert("Server error: " + err.message);
     }
   }
 
-  async function handleProductEdit(p) {
-    const name = window.prompt('Product name', p.name || '');
-    if (name === null) return;
-    const priceStr = window.prompt('Price', String(p.price ?? 0));
-    if (priceStr === null) return;
-    const price = Number(priceStr) || 0;
-    const category = window.prompt('Category', p.category || 'General');
-    if (category === null) return;
-    try {
-      await adminUpdateProduct(p._id || p.id, { name, price, category });
-      setInfo('Product updated');
-      await loadProducts();
-    } catch (err) {
-      setError(err.message || 'Update failed');
-    }
-  }
-
-  async function handleProductDelete(id) {
-    if (!window.confirm('Delete this product?')) return;
+  async function handleDeleteProduct(id) {
+    if (!window.confirm("Delete this product?")) return;
     try {
       await adminDeleteProduct(id);
-      setInfo('Product deleted');
-      await loadProducts();
+      setProducts(products.filter(p => p._id !== id));
     } catch (err) {
-      setError(err.message || 'Delete failed');
+      alert("Failed to delete product: " + err.message);
     }
   }
 
-  // ===== Posts handlers =====
-  async function handlePostCreate() {
-    const title = window.prompt('Post title');
-    if (!title) return;
-    const content = window.prompt('Post content');
-    if (content === null) return;
+  async function handleAddTherapist() {
     try {
-      await adminCreatePost({ title, content, published: true });
-      setInfo('Post created');
-      await loadPosts();
+      const data = await createTherapist({
+        name: therapistName,
+        email: therapistEmail,
+        password: therapistPassword,
+        age: therapistAge,
+        license: therapistLicense,
+      });
+      
+      if (data.success) {
+        alert("✅ Therapist added successfully!");
+        setShowAddTherapist(false);
+        setTherapistName("");
+        setTherapistEmail("");
+        setTherapistPassword("");
+        setTherapistAge("");
+        setTherapistLicense("");
+        // Reload therapists list
+        loadUsers();
+      } else {
+        alert(data.message || "Error adding therapist");
+      }
     } catch (err) {
-      setError(err.message || 'Create failed');
+      alert("Server error: " + err.message);
     }
   }
 
-  async function handlePostEdit(post) {
-    const title = window.prompt('Post title', post.title || '');
-    if (title === null) return;
-    const content = window.prompt('Post content', post.content || '');
-    if (content === null) return;
-    const published = window.confirm('Publish this post? OK = published, Cancel = draft');
-    try {
-      await adminUpdatePost(post._id || post.id, { title, content, published });
-      setInfo('Post updated');
-      await loadPosts();
-    } catch (err) {
-      setError(err.message || 'Update failed');
-    }
+  function handleLogout() {
+    adminLogout();
+    localStorage.removeItem("mm_admin_token");
+    localStorage.removeItem("mm_admin");
+    window.location.href = "/admin/login";
   }
 
-  async function handlePostDelete(id) {
-    if (!window.confirm('Delete this post?')) return;
-    try {
-      await adminDeletePost(id);
-      setInfo('Post deleted');
-      await loadPosts();
-    } catch (err) {
-      setError(err.message || 'Delete failed');
-    }
-  }
+  useEffect(() => {
+    if (tab === "users" || tab === "therapists") loadUsers();
+    if (tab === "pending-therapists") loadPendingTherapists();
+    if (tab === "products") loadProducts();
+    if (tab === "posts") loadPosts();
+    if (tab === "questions") loadQuestions();
+  }, [tab]);
 
-  // ===== Messages handlers =====
-  async function handleMessageDelete(id) {
-    if (!window.confirm('Delete this message?')) return;
-    try {
-      await adminDeleteMessage(id);
-      setInfo('Message deleted');
-      await loadMessages();
-    } catch (err) {
-      setError(err.message || 'Delete failed');
-    }
-  }
+  useEffect(() => {
+    setStats(prev => ({
+      ...prev,
+      totalProducts: products.length,
+      totalPosts: posts.length,
+    }));
+  }, [products, posts]);
 
-  // ===== Questions handlers =====
-  async function handleQuestionCreate() {
-    const text = window.prompt('Question text');
-    if (!text) return;
-    const scale = window.prompt("Scale (optional: D, A, S)", '');
-    const orderStr = window.prompt('Order (number)', '0');
-    if (orderStr === null) return;
-    const order = Number(orderStr) || 0;
-    const active = window.confirm('Mark as active? OK = Yes');
-    try {
-      await adminCreateQuestion({ text, scale: (scale || '').toUpperCase(), order, active, category: 'mindcheck' });
-      setInfo('Question created');
-      await loadQuestions();
-    } catch (err) {
-      setError(err.message || 'Create failed');
-    }
-  }
+  const filteredUsers = users.filter(
+    u => u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase())
+  );
+  
+  const filteredTherapists = therapists.filter(
+    t => t.name?.toLowerCase().includes(search.toLowerCase()) || t.email?.toLowerCase().includes(search.toLowerCase())
+  );
+  
+  const filteredPendingTherapists = pendingTherapists.filter(
+    t => t.name?.toLowerCase().includes(search.toLowerCase()) || t.email?.toLowerCase().includes(search.toLowerCase())
+  );
+  
+  const filteredProducts = products
+    .filter(p => p.name?.toLowerCase().includes(search.toLowerCase()))
+    .filter(p => !showLowStockOnly || p.stock < 50);
 
-  async function handleQuestionEdit(q) {
-    const text = window.prompt('Question text', q.text || '');
-    if (text === null) return;
-    const scale = window.prompt('Scale (D, A, S or empty)', q.scale || '');
-    if (scale === null) return;
-    const orderStr = window.prompt('Order (number)', String(q.order ?? 0));
-    if (orderStr === null) return;
-    const order = Number(orderStr) || 0;
-    const active = window.confirm('Set active? OK = Yes, Cancel = No');
-    try {
-      await adminUpdateQuestion(q._id || q.id, { text, scale: (scale || '').toUpperCase(), order, active });
-      setInfo('Question updated');
-      await loadQuestions();
-    } catch (err) {
-      setError(err.message || 'Update failed');
-    }
-  }
-
-  async function handleQuestionDelete(id) {
-    if (!window.confirm('Delete this question?')) return;
-    try {
-      await adminDeleteQuestion(id);
-      setInfo('Question deleted');
-      await loadQuestions();
-    } catch (err) {
-      setError(err.message || 'Delete failed');
-    }
-  }
-
-  async function handleLogout() {
-    try { await adminLogout(); } catch (_) {}
-    localStorage.removeItem('mm_admin_token');
-    localStorage.removeItem('mm_admin');
-    navigate('/login');
-  }
-
-  // Derived counts
-  const statUsers = users.length;
-  const statProducts = products.length;
-  const statPosts = posts.length;
+  const lowStockProducts = products.filter(p => p.stock < 50);
+  const outOfStockProducts = products.filter(p => p.stock === 0);
+  const hasLowStock = lowStockProducts.length > 0;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '30px auto', padding: '0 16px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-        <div>
-          <h2 style={{ fontSize: 28, lineHeight: 1.2 }}>Admin Dashboard</h2>
-          <div className="subtle" style={{ marginTop: 4 }}>Manage users, products, blogs and chat</div>
+    <div className="admin-dashboard">
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <h2>MindBridge</h2>
+          <p>Admin Panel</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Link to="/" className="chip">Back to site</Link>
-          <button className="cta-btn" onClick={handleLogout}>Logout</button>
-        </div>
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map(item => (
+            <button key={item.id} className={`nav-item ${tab === item.id ? "active" : ""}`} onClick={() => setTab(item.id)}>
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+          <button className="nav-item" onClick={handleLogout}>
+            <LogoutIcon />
+            Logout
+          </button>
+        </nav>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:8, marginBottom: 14 }}>
-        {['users','products','posts','messages','questions'].map(t => (
-          <button
-            key={t}
-            className={`chip ${tab === t ? 'active' : ''}`}
-            onClick={() => setTab(t)}
-          >{t === 'posts' ? 'Blogs' : (t[0].toUpperCase() + t.slice(1))}</button>
-        ))}
+      <div className="main-content">
+        <div className="admin-header">
+          <h2>{tab.charAt(0).toUpperCase() + tab.slice(1).replace("-", " ")} Management</h2>
+        </div>
+
+        {error && <div className="error-box">{error}</div>}
+
+        {/* Search + Add Buttons */}
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
+            <input className="input" placeholder={`Search ${tab.replace("-", " ")}...`} value={search} onChange={e => setSearch(e.target.value)} />
+            {tab === "users" && (
+              <button className="cta-btn primary" onClick={() => setShowAddTherapist(true)}>
+                + Add Therapist
+              </button>
+            )}
+            {tab === "therapists" && (
+              <button className="cta-btn primary" onClick={() => setShowAddTherapist(true)}>
+                + Add Therapist
+              </button>
+            )}
+            {tab === "products" && (
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  className={`cta-btn ${showLowStockOnly ? 'active' : ''}`}
+                  onClick={() => setShowLowStockOnly(!showLowStockOnly)}
+                  style={showLowStockOnly ? { backgroundColor: '#ff9800' } : {}}
+                >
+                  {showLowStockOnly ? '✓ ' : ''}Low Stock Only
+                </button>
+                <button 
+                  className="cta-btn"
+                  onClick={() => setShowRestockSuggestions(!showRestockSuggestions)}
+                >
+                  🔄 Restock Suggestions
+                </button>
+                <button className="cta-btn primary" onClick={() => setShowAddModal(true)}>
+                  + Add Product
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {tab === "products" && hasLowStock && (
+            <div className="alert-banner" style={{ 
+              backgroundColor: '#fff3e0', 
+              padding: '10px', 
+              borderRadius: '4px', 
+              borderLeft: '4px solid #ff9800',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.2em' }}>⚠️</span>
+              <div>
+                <strong>Low Stock Alert:</strong> {lowStockProducts.length} product(s) have low stock
+                {outOfStockProducts.length > 0 && `, ${outOfStockProducts.length} are out of stock`}.
+              </div>
+            </div>
+          )}
+          
+          {tab === "products" && showRestockSuggestions && (
+            <div className="restock-suggestions" style={{ 
+              backgroundColor: '#f5f5f5', 
+              padding: '15px', 
+              borderRadius: '4px', 
+              marginBottom: '1rem',
+              border: '1px solid #e0e0e0',
+              position: 'relative'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ margin: 0 }}>🔄 Restock Suggestions</h4>
+                <button 
+                  onClick={() => setShowRestockSuggestions(false)}
+                  className="cta-btn"
+                  style={{ padding: '4px 10px', fontSize: '0.9em' }}
+                >
+                  ← Back to Products
+                </button>
+              </div>
+              {lowStockProducts.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {lowStockProducts.map(p => (
+                    <div key={p._id} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px',
+                      backgroundColor: p.stock === 0 ? '#ffebee' : '#fff8e1',
+                      borderRadius: '4px'
+                    }}>
+                      <div>
+                        <strong>{p.name}</strong> - {p.category}
+                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                          Current stock: {p.stock}
+                        </div>
+                      </div>
+                      <div>
+                        Suggested order: {100 - p.stock} units
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>No low stock items. Great job! 🎉</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* USERS TAB */}
+        {tab === "users" && (
+          <div>
+            {loading ? (
+              <p>Loading users...</p>
+            ) : (
+              filteredUsers.map(u => (
+                <div key={u._id} className="user-card">
+                  <div>
+                    <h4>{u.name}</h4>
+                    <p>{u.email}</p>
+                    <p>Type: {u.userType || "user"}</p>
+                  </div>
+                  <button className="cta-btn" onClick={() => handleToggleUserStatus(u._id, !u.isActive)}>
+                    {u.isActive ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* THERAPISTS TAB */}
+        {tab === "therapists" && (
+          <div>
+            {loading ? (
+              <p>Loading therapists...</p>
+            ) : (
+              filteredTherapists.map(t => (
+                <div key={t._id} className="user-card">
+                  <div>
+                    <h4>{t.name}</h4>
+                    <p>{t.email}</p>
+                    <p>License: {t.license || "N/A"}</p>
+                    <p>Age: {t.age || "N/A"}</p>
+                  </div>
+                  <button className="cta-btn" onClick={() => handleToggleTherapistStatus(t._id, !t.isActive)}>
+                    {t.isActive ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* PENDING THERAPISTS TAB */}
+        {tab === "pending-therapists" && (
+          <div>
+            {loading ? (
+              <p>Loading pending therapists...</p>
+            ) : pendingTherapists.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "40px" }}>
+                <h3>No pending therapists</h3>
+                <p>All therapists have been approved.</p>
+              </div>
+            ) : (
+              filteredPendingTherapists.map(t => (
+                <div key={t._id} className="user-card">
+                  <div>
+                    <h4>{t.name}</h4>
+                    <p>{t.email}</p>
+                    <p>License: {t.license || "N/A"}</p>
+                    <p>Age: {t.age || "N/A"}</p>
+                    <p>Registered: {new Date(t.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <button className="cta-btn primary" onClick={() => handleApproveTherapist(t._id)}>
+                    Approve
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* PRODUCTS TAB */}
+        {tab === "products" && (
+          <div>
+            {(showLowStockOnly || showRestockSuggestions) && (
+              <div style={{ marginBottom: '1rem' }}>
+                <button 
+                  onClick={() => {
+                    setShowLowStockOnly(false);
+                    setShowRestockSuggestions(false);
+                  }}
+                  className="cta-btn"
+                  style={{ 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    backgroundColor: '#f0f0f0',
+                    border: '1px solid #ddd',
+                    color: '#333'
+                  }}
+                >
+                  ← Show All Products
+                </button>
+              </div>
+            )}
+            {loading ? (
+              <p>Loading products...</p>
+            ) : (
+              <div className="product-grid">
+                {filteredProducts.map(p => (
+                  <div 
+                    key={p._id} 
+                    className="user-card"
+                    style={{
+                      borderLeft: p.stock === 0 ? '4px solid #f44336' : 
+                                  p.stock < 50 ? '4px solid #ff9800' : '4px solid #4caf50'
+                    }}
+                  >
+                    <h4>{p.name}</h4>
+                    {p.image && (
+                      <img
+                        src={p.image.startsWith("http") ? p.image : `http://localhost:5000${p.image}`}
+                        alt={p.name}
+                        style={{ width: "100px", height: "100px", borderRadius: "8px" }}
+                      />
+                    )}
+                    <p>₹{p.price}</p>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '5px',
+                      color: p.stock === 0 ? '#f44336' : p.stock < 50 ? '#ff9800' : '#4caf50',
+                      fontWeight: 500
+                    }}>
+                      Stock: {p.stock}
+                      {p.stock < 50 && (
+                        <span style={{ 
+                          backgroundColor: p.stock === 0 ? '#f44336' : '#ff9800',
+                          color: 'white',
+                          borderRadius: '4px',
+                          padding: '2px 6px',
+                          fontSize: '0.8em',
+                          marginLeft: '5px'
+                        }}>
+                          {p.stock === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        className="cta-btn"
+                        onClick={async () => {
+                          const newStock = prompt("Enter new stock:", p.stock);
+                          if (!newStock) return;
+                          const { product: updated } = await adminUpdateProductStock(p._id, parseInt(newStock));
+                          setProducts(products.map(prod => (prod._id === p._id ? updated : prod)));
+                        }}
+                      >
+                        Update Stock
+                      </button>
+                      <button className="cta-btn danger" onClick={() => handleDeleteProduct(p._id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 16 }}>
-        <div className="card"><div className="subtle">Users</div><div style={{ fontWeight: 800, fontSize: 22 }}>{statUsers}</div></div>
-        <div className="card"><div className="subtle">Products</div><div style={{ fontWeight: 800, fontSize: 22 }}>{statProducts}</div></div>
-        <div className="card"><div className="subtle">Blogs</div><div style={{ fontWeight: 800, fontSize: 22 }}>{statPosts}</div></div>
-        <div className="card"><div className="subtle">Loading</div><div style={{ fontWeight: 800, fontSize: 22 }}>{loading ? '...' : '✓'}</div></div>
-      </div>
-
-      {/* Alerts */}
-      {error && <div style={{ background:'#fee2e2', color:'#991b1b', border:'1px solid #fecaca', padding:10, borderRadius:10, marginBottom:12 }}>{error}</div>}
-      {info && <div style={{ background:'#ecfdf5', color:'#065f46', border:'1px solid #a7f3d0', padding:10, borderRadius:10, marginBottom:12 }}>{info}</div>}
-
-      {tab === 'users' && (
-        <div className="card-pro">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 800 }}>Users</div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <input className="input" placeholder="Search name or email..." value={userQuery} onChange={e => setUserQuery(e.target.value)} />
-              <button className="cta-btn secondary" onClick={loadUsers} disabled={loading}>Refresh</button>
+      {/* Add Therapist Modal */}
+      {showAddTherapist && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3>Add Therapist</h3>
+            <input className="input" placeholder="Name" value={therapistName} onChange={e => setTherapistName(e.target.value)} />
+            <input className="input" placeholder="Email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} />
+            <input
+              type="password"
+              className="input"
+              placeholder="Password"
+              value={therapistPassword}
+              onChange={e => setTherapistPassword(e.target.value)}
+            />
+            <input
+              type="number"
+              className="input"
+              placeholder="Age"
+              value={therapistAge}
+              onChange={e => setTherapistAge(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="License"
+              value={therapistLicense}
+              onChange={e => setTherapistLicense(e.target.value)}
+            />
+            <div style={{ marginTop: "1rem" }}>
+              <button className="cta-btn" onClick={handleAddTherapist}>
+                Add Therapist
+              </button>
+              <button className="cta-btn secondary" onClick={() => setShowAddTherapist(false)}>
+                Cancel
+              </button>
             </div>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-              <thead>
-                <tr>
-                  {['Name','Email','Created','Actions'].map(h => (
-                    <th key={h} style={{ textAlign:'left', padding: '12px 10px', borderBottom: '1px solid var(--border)', background:'#fafafa', position:'sticky', top:0 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length === 0 && !loading && (
-                  <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center' }}>No users found</td></tr>
-                )}
-                {filteredUsers.map((u, idx) => (
-                  <tr key={u._id || u.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 ? '#fff' : '#fcfcff' }}>
-                    <td style={{ padding: '10px 10px', fontWeight: 600 }}>{u.name || '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>{u.email || '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>{u.createdAt ? new Date(u.createdAt).toLocaleString() : '-'}</td>
-                    <td style={{ padding: '10px 10px', display: 'flex', gap: 8 }}>
-                      <button className="cta-btn secondary" onClick={() => handleUserEdit(u)}>Edit</button>
-                      <button className="cta-btn" onClick={() => handleUserDelete(u._id || u.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
 
-      {tab === 'products' && (
-        <div className="card-pro">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 800 }}>Products</div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <button className="cta-btn" onClick={handleProductCreate}>Add Product</button>
-              <button className="cta-btn secondary" onClick={loadProducts} disabled={loading}>Refresh</button>
-            </div>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-              <thead>
-                <tr>
-                  {['Name','Category','Price','In Stock','Created','Actions'].map(h => (
-                    <th key={h} style={{ textAlign:'left', padding: '12px 10px', borderBottom: '1px solid var(--border)', background:'#fafafa', position:'sticky', top:0 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {products.length === 0 && !loading && (
-                  <tr><td colSpan={6} style={{ padding: 16, textAlign: 'center' }}>No products</td></tr>
-                )}
-                {products.map((p, idx) => (
-                  <tr key={p._id || p.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 ? '#fff' : '#fcfcff' }}>
-                    <td style={{ padding: '10px 10px', fontWeight: 600 }}>{p.name || '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>{p.category || '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>${Number(p.price || 0).toFixed(2)}</td>
-                    <td style={{ padding: '10px 10px' }}>{p.inStock ? 'Yes' : 'No'}</td>
-                    <td style={{ padding: '10px 10px' }}>{p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</td>
-                    <td style={{ padding: '10px 10px', display: 'flex', gap: 8 }}>
-                      <button className="cta-btn secondary" onClick={() => handleProductEdit(p)}>Edit</button>
-                      <button className="cta-btn" onClick={() => handleProductDelete(p._id || p.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Add Product Modal */}
+      {showAddModal && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3>Add Product</h3>
+            <input className="input" id="product-name" placeholder="Name" />
+            <input className="input" id="product-price" placeholder="Price (₹)" type="number" />
+            <input className="input" id="product-stock" placeholder="Stock" type="number" />
+            <input className="input" id="product-image" placeholder="Image URL" />
+            <select className="input" id="product-category">
+              <option value="">Select Category</option>
+              {CATEGORY_OPTIONS.map(c => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+            <textarea className="input" id="product-description" placeholder="Description"></textarea>
+            <div style={{ marginTop: "1rem" }}>
+              <button
+                className="cta-btn"
+                onClick={async () => {
+                  const name = document.getElementById("product-name").value.trim();
+                  const price = parseFloat(document.getElementById("product-price").value);
+                  const stock = parseInt(document.getElementById("product-stock").value);
+                  const image = document.getElementById("product-image").value.trim();
+                  const category = document.getElementById("product-category").value.trim();
+                  const description = document.getElementById("product-description").value.trim();
 
-      {tab === 'posts' && (
-        <div className="card-pro">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 800 }}>Blogs</div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <button className="cta-btn" onClick={handlePostCreate}>Add Blog</button>
-              <button className="cta-btn secondary" onClick={loadPosts} disabled={loading}>Refresh</button>
-            </div>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-              <thead>
-                <tr>
-                  {['Title','Published','Created','Actions'].map(h => (
-                    <th key={h} style={{ textAlign:'left', padding: '12px 10px', borderBottom: '1px solid var(--border)', background:'#fafafa', position:'sticky', top:0 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {posts.length === 0 && !loading && (
-                  <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center' }}>No posts</td></tr>
-                )}
-                {posts.map((post, idx) => (
-                  <tr key={post._id || post.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 ? '#fff' : '#fcfcff' }}>
-                    <td style={{ padding: '10px 10px', fontWeight: 600 }}>{post.title || '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>{post.published ? 'Yes' : 'No'}</td>
-                    <td style={{ padding: '10px 10px' }}>{post.createdAt ? new Date(post.createdAt).toLocaleString() : '-'}</td>
-                    <td style={{ padding: '10px 10px', display: 'flex', gap: 8 }}>
-                      <button className="cta-btn secondary" onClick={() => handlePostEdit(post)}>Edit</button>
-                      <button className="cta-btn" onClick={() => handlePostDelete(post._id || post.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                  if (!name || !price || !stock || !image || !category) return alert("Please fill all fields");
 
-      {tab === 'messages' && (
-        <div className="card-pro">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 800 }}>Messages (global room)</div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <button className="cta-btn secondary" onClick={loadMessages} disabled={loading}>Refresh</button>
+                  try {
+                    const { product } = await adminCreateProduct({ name, price, stock, image, category, description });
+                    setProducts([...products, product]);
+                    alert("✅ Product added!");
+                    setShowAddModal(false);
+                  } catch (err) {
+                    alert("Error adding product: " + err.message);
+                  }
+                }}
+              >
+                Add Product
+              </button>
+              <button className="cta-btn secondary" onClick={() => setShowAddModal(false)}>
+                Cancel
+              </button>
             </div>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-              <thead>
-                <tr>
-                  {['Sender','Text','Time','Actions'].map(h => (
-                    <th key={h} style={{ textAlign:'left', padding: '12px 10px', borderBottom: '1px solid var(--border)', background:'#fafafa', position:'sticky', top:0 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {messages.length === 0 && !loading && (
-                  <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center' }}>No messages</td></tr>
-                )}
-                {messages.map((m, idx) => (
-                  <tr key={m._id || m.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 ? '#fff' : '#fcfcff' }}>
-                    <td style={{ padding: '10px 10px', fontWeight: 600 }}>{m.senderName || (m.sender && m.sender.name) || 'User'}</td>
-                    <td style={{ padding: '10px 10px', maxWidth: 600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.text}</td>
-                    <td style={{ padding: '10px 10px' }}>{m.createdAt ? new Date(m.createdAt).toLocaleString() : '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>
-                      <button className="cta-btn" onClick={() => handleMessageDelete(m._id || m.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'questions' && (
-        <div className="card-pro">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 800 }}>Mind Check Questions</div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <button className="cta-btn" onClick={handleQuestionCreate}>Add Question</button>
-              <select className="input" value={questionFilterActive} onChange={e => setQuestionFilterActive(e.target.value)}>
-                <option value="all">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-              <button className="cta-btn secondary" onClick={loadQuestions} disabled={loading}>Refresh</button>
-            </div>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-              <thead>
-                <tr>
-                  {['Text','Scale','Order','Active','Created','Actions'].map(h => (
-                    <th key={h} style={{ textAlign:'left', padding: '12px 10px', borderBottom: '1px solid var(--border)', background:'#fafafa', position:'sticky', top:0 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {questions.length === 0 && !loading && (
-                  <tr><td colSpan={6} style={{ padding: 16, textAlign: 'center' }}>No questions</td></tr>
-                )}
-                {questions.map((q, idx) => (
-                  <tr key={q._id || q.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 ? '#fff' : '#fcfcff' }}>
-                    <td style={{ padding: '10px 10px', fontWeight: 600 }}>{q.text || '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>{q.scale || '-'}</td>
-                    <td style={{ padding: '10px 10px' }}>{q.order ?? 0}</td>
-                    <td style={{ padding: '10px 10px' }}>{q.active ? 'Yes' : 'No'}</td>
-                    <td style={{ padding: '10px 10px' }}>{q.createdAt ? new Date(q.createdAt).toLocaleString() : '-'}</td>
-                    <td style={{ padding: '10px 10px', display: 'flex', gap: 8 }}>
-                      <button className="cta-btn secondary" onClick={() => handleQuestionEdit(q)}>Edit</button>
-                      <button className="cta-btn" onClick={() => handleQuestionDelete(q._id || q.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}

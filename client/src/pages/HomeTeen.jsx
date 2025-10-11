@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
+import { Link } from "react-router-dom";
 
 export default function HomeTeen() {
   const [user, setUser] = useState(null);
@@ -70,6 +71,26 @@ export default function HomeTeen() {
                   <div className="subtle">{r.desc}</div>
                 </motion.a>
               ))}
+            </div>
+
+            {/* Calendar button for teen page */}
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
+              <Link
+                to="/calendar"
+                className="cta-btn"
+                style={{
+                  background: "white",
+                  color: "#1f2937",
+                  border: "2px solid #1f2937",
+                  padding: "12px 24px",
+                  borderRadius: "10px",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  textDecoration: "none"
+                }}
+              >
+                📅 Calender
+              </Link>
             </div>
           </motion.section>
         </motion.div>

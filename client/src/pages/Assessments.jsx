@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
 
@@ -62,31 +63,40 @@ function getSeverity(scale, score) {
 }
 
 export default function Assessments() {
+  const navigate = useNavigate();
   const [responses, setResponses] = useState({}); // { [id]: 0|1|2|3 }
-  const [saved, setSaved] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [touched, setTouched] = useState({}); // track which question IDs were clicked this session
+  const [validationError, setValidationError] = useState("");
 
-  // Load last saved responses
+  // Load last saved responses and start at first unanswered
   useEffect(() => {
     try {
       const raw = localStorage.getItem("mm_assessment_dass21");
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?.responses) setResponses(parsed.responses);
-        if (parsed?.result) setSaved(parsed.result);
+        if (parsed?.responses) {
+          // normalize to numbers; do not mark as touched
+          const normalized = Object.fromEntries(
+            Object.entries(parsed.responses).map(([k, v]) => [k, v === undefined || v === null ? undefined : Number(v)])
+          );
+          setResponses(normalized);
+          // jump to first unanswered question
+          const firstUnansweredIdx = DASS_ITEMS.findIndex((q) => normalized[q.id] === undefined);
+          if (firstUnansweredIdx >= 0) setCurrentIndex(firstUnansweredIdx);
+        }
       }
     } catch (_) {}
   }, []);
 
-  const allAnswered = Object.keys(responses).length === DASS_ITEMS.length;
+  // Note: We intentionally compute per-question selection with `hasAnswer` below.
 
   const result = useMemo(() => {
-    // Sum raw scores per subscale
     const sums = { D: 0, A: 0, S: 0 };
     for (const item of DASS_ITEMS) {
       const val = Number(responses[item.id] ?? 0);
       if (item.scale in sums) sums[item.scale] += val;
     }
-    // Multiply by 2 for DASS-21 final scores
     const final = {
       D: sums.D * 2,
       A: sums.A * 2,
@@ -101,76 +111,237 @@ export default function Assessments() {
     return { final, severity };
   }, [responses]);
 
-  function setAnswer(id, value) {
-    setResponses((prev) => ({ ...prev, [id]: value }));
+  function setAnswerAndAdvance(id, value) {
+    const numeric = Number(value);
+    setResponses((prev) => {
+      // If selecting the same value again, do nothing to avoid flicker/color changes
+      if (prev[id] === numeric) return prev;
+      const next = { ...prev, [id]: numeric };
+      // persist progress so user can resume
+      try {
+        const payload = { timestamp: Date.now(), responses: next };
+        localStorage.setItem("mm_assessment_dass21", JSON.stringify(payload));
+      } catch (_) {}
+      return next;
+    });
+
+    // mark this question as user-touched to allow highlighting (do not recreate if already true)
+    setTouched((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+
+    // clear any validation error once an option is chosen
+    setValidationError("");
   }
 
-  function handleSave() {
-    const payload = { timestamp: Date.now(), responses, result };
+  function goPrev() {
+    setValidationError("");
+    setCurrentIndex((idx) => Math.max(idx - 1, 0));
+  }
+
+  function retake() {
+    // Clear current progress and start from the first question
+    setResponses({});
+    setTouched({});
+    setCurrentIndex(0);
     try {
-      localStorage.setItem("mm_assessment_dass21", JSON.stringify(payload));
-      setSaved(result);
+      localStorage.removeItem("mm_assessment_dass21");
     } catch (_) {}
   }
 
-  function handleReset() {
-    setResponses({});
-    setSaved(null);
+  function handleSubmit() {
+    const payload = { timestamp: Date.now(), responses, result };
+    try {
+      // Save latest snapshot
+      localStorage.setItem("mm_assessment_dass21", JSON.stringify(payload));
+
+      // Append to history (per day), keep last 30
+      const today = new Date().toISOString().slice(0, 10);
+      const histRaw = localStorage.getItem("mm_assessment_history");
+      let history = [];
+      if (histRaw) {
+        try { history = JSON.parse(histRaw) || []; } catch (_) { history = []; }
+      }
+      const next = history.filter((h) => h.date !== today);
+      next.push({ date: today, D: result.final.D, A: result.final.A, S: result.final.S });
+      const trimmed = next.sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
+      localStorage.setItem("mm_assessment_history", JSON.stringify(trimmed));
+    } catch (_) {}
+
+    // Return to Home and auto-expand the results section
+    navigate("/home", { state: { fromAssessments: true } });
   }
+
+  const q = DASS_ITEMS[currentIndex];
+  const progress = ((currentIndex + 1) / DASS_ITEMS.length) * 100;
+  const isLast = currentIndex === DASS_ITEMS.length - 1;
+  // Require an explicit click on an option in this session before advancing
+  const hasSelection = !!touched[q?.id];
 
   return (
     <div className="landing-container">
       <Navbar />
-      <main style={{ padding: "32px 24px", maxWidth: 960, margin: "0 auto" }}>
+      <main style={{ padding: "24px 16px", maxWidth: 720, margin: "0 auto" }}>
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <header style={{ marginBottom: 16 }}>
+          {/* Header */}
+          <header style={{ marginBottom: 16, textAlign: "center" }}>
             <h2>DASS‑21 Assessment</h2>
             <p className="subtle" style={{ marginTop: 6 }}>
               Over the past week, rate how much each statement applied to you.
-              0 = Did not apply to me at all; 1 = Applied to me to some degree; 2 = Applied to a considerable degree; 3 = Applied very much.
             </p>
-            <div className="subtle" style={{ marginTop: 10, fontSize: 13 }}>
-              This tool is for screening only and does not provide a diagnosis. If you are in crisis or thinking about harming yourself, seek immediate help.
+            <div className="subtle" style={{ marginTop: 8, fontSize: 13 }}>
+              0 = Not at all • 1 = To some degree • 2 = Considerably • 3 = Very much
             </div>
           </header>
 
-          <section className="card" style={{ padding: 16, marginBottom: 16 }}>
-            <ol style={{ display: "grid", gap: 14, paddingLeft: 18 }}>
-              {DASS_ITEMS.map((q) => (
-                <li key={q.id}>
-                  <div style={{ marginBottom: 8 }}>
-                    <span style={{ fontWeight: 600, marginRight: 6 }}>Q{q.id}.</span>
-                    {q.text}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {[0, 1, 2, 3].map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        className="chip"
-                        onClick={() => setAnswer(q.id, v)}
-                        style={{
-                          borderColor: responses[q.id] === v ? "#2563eb" : "#e5e7eb",
-                          background: responses[q.id] === v ? "#eff6ff" : undefined,
-                        }}
-                        title={`Select ${v}`}
-                      >
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-                </li>
-              ))}
-            </ol>
-
-            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-              <button className="cta-btn" onClick={handleSave} disabled={!allAnswered}>Save Results</button>
-              <button className="cta-btn secondary" onClick={handleReset}>Reset</button>
+          {/* Progress */}
+          <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontWeight: 700 }}>Question {currentIndex + 1} / {DASS_ITEMS.length}</div>
+              <div style={{ flex: 1, height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.3 }}
+                  style={{ height: "100%", background: "linear-gradient(90deg, #4ade80, #22d3ee, #a855f7)", borderRadius: 3 }}
+                />
+              </div>
             </div>
-          </section>
+          </div>
 
-          <section className="card" style={{ padding: 16 }}>
-            <h3 style={{ marginBottom: 8 }}>Your Scores</h3>
+          {/* Single-question card */}
+          <motion.section
+            className="card"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{ padding: 20 }}
+          >
+            <div style={{ marginBottom: 12 }}>
+              <span style={{ fontWeight: 700, marginRight: 8, color: "#4ade80" }}>Q{q.id}.</span>
+              <span style={{ color: "#374151" }}>{q.text}</span>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {[0, 1, 2, 3].map((v) => (
+                <motion.button
+                  key={v}
+                  type="button"
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setAnswerAndAdvance(q.id, v)}
+                  className="chip"
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: 8,
+                    border: `2px solid ${touched[q.id] && responses[q.id] === v ? "#4ade80" : "#e5e7eb"}`,
+                    background: touched[q.id] && responses[q.id] === v ? "linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)" : "white",
+                    color: touched[q.id] && responses[q.id] === v ? "white" : "#374151",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    boxShadow: touched[q.id] && responses[q.id] === v ? "0 4px 12px rgba(74, 222, 128, 0.3)" : "0 2px 4px rgba(0,0,0,0.05)",
+                  }}
+                  title={`Select ${v}`}
+                >
+                  {v}
+                </motion.button>
+              ))}
+            </div>
+
+            {/* Inline validation message */}
+            {validationError && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                style={{
+                  marginTop: 12,
+                  marginBottom: -4,
+                  background: "#fee2e2",
+                  color: "#991b1b",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #fecaca",
+                  fontSize: 14,
+                }}
+              >
+                {validationError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "space-between" }}>
+              <button
+                type="button"
+                className="cta-btn"
+                onClick={goPrev}
+                disabled={currentIndex === 0}
+                style={{ color: "black" }}
+              >
+                Previous
+              </button>
+
+              {isLast ? (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="cta-btn"
+                    onClick={retake}
+                    title="Start over from question 1"
+                    style={{ color: "black" }}
+                  >
+                    Retake
+                  </button>
+                  <button
+                    type="button"
+                    className="cta-btn"
+                    onClick={(e) => {
+                      if (!hasSelection) {
+                        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+                        setValidationError("choose an option");
+                        try { window.alert("choose an option"); } catch (_) {}
+                        return;
+                      }
+                      handleSubmit();
+                    }}
+                    style={{ color: "black" }}
+                  >
+                    Submit Results
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="cta-btn"
+                    onClick={retake}
+                    title="Start over from question 1"
+                    style={{ color: "black" }}
+                  >
+                    Retake
+                  </button>
+                  <button
+                    type="button"
+                    className="cta-btn"
+                    onClick={(e) => {
+                      if (!hasSelection) {
+                        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+                        setValidationError("choose an option");
+                        try { window.alert("choose an option"); } catch (_) {}
+                        return;
+                      }
+                      setCurrentIndex((i) => Math.min(i + 1, DASS_ITEMS.length - 1));
+                    }}
+                    style={{ color: "black" }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+
+            </div>
+          </motion.section>
+
+          {/* Optional: quick preview of current totals */}
+          <section className="card" style={{ padding: 16, marginTop: 12 }}>
             <div className="grid-3">
               <div className="resource">
                 <div className="resource-title">Depression</div>
@@ -188,11 +359,6 @@ export default function Assessments() {
                 <div>Severity: <strong>{result.severity.Stress}</strong></div>
               </div>
             </div>
-            {saved && (
-              <div className="subtle" style={{ marginTop: 12, fontSize: 13 }}>
-                Last saved locally. You can safely close this page and return later.
-              </div>
-            )}
           </section>
         </motion.div>
       </main>

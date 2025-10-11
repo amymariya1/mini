@@ -46,32 +46,39 @@ export default function Navbar() {
 
   return (
     <header className="navbar">
-      <div className="logo" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>MindMirror</div>
-      <nav>
-        {!hideNavLinks && (
+      <div className="navbar-content">
+        <div className="navbar-brand" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
+          MindMirror
+        </div>
+        <nav className="navbar-nav">
+          {!hideNavLinks && (
+            <motion.span whileHover={hover} whileTap={tap}>
+              <Link to="/" className="nav-link">Home</Link>
+            </motion.span>
+          )}
           <motion.span whileHover={hover} whileTap={tap}>
-            <Link to="/">Home</Link>
+            <a href="#" className="nav-link">About</a>
           </motion.span>
-        )}
-        <motion.span whileHover={hover} whileTap={tap}>
-          <a href="#">About</a>
-        </motion.span>
-        <motion.span whileHover={hover} whileTap={tap}>
-          <a href="#">Contact</a>
-        </motion.span>
-        {user ? (
-          <ProfileMenu user={user} />
-        ) : (
-          <>
-            <motion.span whileHover={hover} whileTap={tap}>
-              <Link to="/login">Log in</Link>
-            </motion.span>
-            <motion.span whileHover={hover} whileTap={tap}>
-              <Link to="/signup">Sign up</Link>
-            </motion.span>
-          </>
-        )}
-      </nav>
+          <motion.span whileHover={hover} whileTap={tap}>
+            <a href="#" className="nav-link">Contact</a>
+          </motion.span>
+          {user ? (
+            <>
+
+              <ProfileMenu user={user} />
+            </>
+          ) : (
+            <>
+              <motion.span whileHover={hover} whileTap={tap}>
+                <Link to="/login" className="nav-link">Log in</Link>
+              </motion.span>
+              <motion.span whileHover={hover} whileTap={tap}>
+                <Link to="/signup" className="nav-link">Sign up</Link>
+              </motion.span>
+            </>
+          )}
+        </nav>
+      </div>
     </header>
   );
 }

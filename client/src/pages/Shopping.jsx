@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import "../App.css";
 import { listProducts } from "../services/api";
+import { formatINR } from "../utils/currency";
 
 const CATEGORIES = [
   { name: "All", value: "all" },
@@ -25,6 +26,33 @@ export default function Shopping() {
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const navigate = useNavigate();
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('mm_cart');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCart(parsed);
+      }
+    } catch (_) {}
+  }, []);
+
+  // Persist cart to localStorage when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('mm_cart', JSON.stringify(cart));
+    } catch (_) {}
+  }, [cart]);
+
+  // Reopen cart if flagged (e.g., after returning from checkout)
+  useEffect(() => {
+    const flag = localStorage.getItem('mm_reopen_cart');
+    if (flag === '1') {
+      setShowCart(true);
+      localStorage.removeItem('mm_reopen_cart');
+    }
+  }, []);
 
   // Load from backend
   useEffect(() => {
@@ -106,6 +134,13 @@ export default function Shopping() {
     });
   };
 
+  // Add item and open cart immediately
+  const buyNow = (product) => {
+    if (!product?.inStock) return;
+    addToCart(product);
+    setShowCart(true);
+  };
+
   const removeFromCart = (productId) => {
     setCart(prev => prev.filter(item => item.id !== productId));
   };
@@ -177,8 +212,8 @@ export default function Shopping() {
               <div className="price-range">
                 <input type="range" min="0" max="200" className="price-slider" />
                 <div className="price-labels">
-                  <span>$0</span>
-                  <span>$200+</span>
+                  <span>{formatINR(0)}</span>
+                  <span>{formatINR(200)}+</span>
                 </div>
               </div>
             </div>
@@ -236,43 +271,67 @@ export default function Shopping() {
               </button>
             </div>
 
-            {/* Products Grid */}
-            <div className="products-grid">
+            {/* Products Grid (styled like Admin Dashboard) */}
+            <div
+              className="products-grid"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat( auto-fill, minmax(240px, 1fr) )',
+                gap: 12
+              }}
+            >
               {filteredProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
-                  className="product-card"
+                  className="card"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.1 }}
                   whileHover={{ y: -4 }}
                   onClick={() => handleProductClick(product.id)}
                 >
-                  <div className="product-image">
-                    {typeof product.image === 'string' && product.image.startsWith('http') ? (
+                  {/* Image wrapper (Admin-style) */}
+                  {typeof product.image === 'string' && product.image.trim().length > 0 ? (
+                    <div style={{ width: '100%', paddingTop: '56%', position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#f7f7f7' }}>
                       <img
-                        src={product.image}
                         alt={product.name}
-                        className="product-photo"
-                        style={{ width: '100%', height: '160px', objectFit: 'contain', borderRadius: '12px', background: '#fff' }}
+                        src={product.image.trim()}
+                        onError={(e) => {
+                          e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2364758b" font-size="16">No image</text></svg>';
+                        }}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                       />
-                    ) : (
-                      <div className="product-emoji">{product.image}</div>
-                    )}
-                    {product.badge && (
-                      <span className={`product-badge ${product.badge.toLowerCase().replace(' ', '-')}`}>
-                        {product.badge}
-                      </span>
-                    )}
-                    {!product.inStock && (
-                      <div className="out-of-stock">Out of Stock</div>
-                    )}
-                  </div>
+                      {product.badge && (
+                        <span className={`product-badge ${product.badge.toLowerCase().replace(' ', '-')}`}
+                              style={{ position: 'absolute', top: 8, left: 8 }}>
+                          {product.badge}
+                        </span>
+                      )}
+                      {!product.inStock && (
+                        <div className="out-of-stock" style={{ position: 'absolute', inset: 0 }}>Out of Stock</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ height: 120, borderRadius: 8, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', position: 'relative' }}>
+                      <span className="cart-emoji" style={{ fontSize: 24 }}>🛍️</span>
+                      {product.badge && (
+                        <span className={`product-badge ${product.badge.toLowerCase().replace(' ', '-')}`}
+                              style={{ position: 'absolute', top: 8, left: 8 }}>
+                          {product.badge}
+                        </span>
+                      )}
+                      {!product.inStock && (
+                        <div className="out-of-stock" style={{ position: 'absolute', inset: 0 }}>Out of Stock</div>
+                      )}
+                    </div>
+                  )}
 
+                  {/* Info */}
                   <div className="product-info">
                     <h3 className="product-name">{product.name}</h3>
                     <p className="product-description">{product.description}</p>
-                    
+
                     <div className="product-rating">
                       <span className="stars">
                         {'★'.repeat(Math.floor(product.rating || 0))}
@@ -284,9 +343,9 @@ export default function Shopping() {
                     </div>
 
                     <div className="product-pricing">
-                      <span className="current-price">${product.price}</span>
+                      <span className="current-price">{formatINR(product.price)}</span>
                       {product.originalPrice > product.price && (
-                        <span className="original-price">${product.originalPrice}</span>
+                        <span className="original-price">{formatINR(product.originalPrice)}</span>
                       )}
                     </div>
 
@@ -300,6 +359,19 @@ export default function Shopping() {
                     >
                       {product.inStock ? 'Add to Cart' : 'Out of Stock'}
                     </button>
+
+                    {product.inStock && (
+                      <button
+                        className="buy-now-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          buyNow(product);
+                        }}
+                        style={{ marginTop: 8, width: '100%' }}
+                      >
+                        Buy Now
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -346,11 +418,19 @@ export default function Shopping() {
               cart.map(item => (
                 <div key={item.id} className="cart-item">
                   <div className="cart-item-image">
-                    <div className="cart-emoji">{item.image}</div>
+                    {typeof item.image === 'string' && item.image.trim().startsWith('http') ? (
+                      <img
+                        alt={item.name}
+                        src={item.image.trim()}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="cart-emoji">{item.image || '🛍️'}</span>
+                    )}
                   </div>
                   <div className="cart-item-info">
                     <h4>{item.name}</h4>
-                    <p>${item.price}</p>
+                    <p>{formatINR(item.price)}</p>
                     <div className="quantity-controls">
                       <button onClick={() => updateQuantity(item.id, item.quantity - 1)}>
                         -
@@ -375,9 +455,18 @@ export default function Shopping() {
           {cart.length > 0 && (
             <div className="cart-footer">
               <div className="cart-total">
-                <strong>Total: ${getTotalPrice().toFixed(2)}</strong>
+                <strong>Total: {formatINR(getTotalPrice())}</strong>
               </div>
-              <button className="checkout-btn">
+              <button
+                className="checkout-btn"
+                onClick={() => {
+                  // Ensure cart persists and mark to reopen when user returns
+                  try { localStorage.setItem('mm_cart', JSON.stringify(cart)); } catch (_) {}
+                  localStorage.setItem('mm_reopen_cart', '1');
+                  setShowCart(false);
+                  navigate('/checkout/address');
+                }}
+              >
                 Proceed to Checkout
               </button>
             </div>

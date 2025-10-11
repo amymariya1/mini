@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { findByEmail, createUser, setUserResetToken, findByResetTokenHash, clearUserResetToken } from '../utils/userStore.js';
-import { sendResetEmail } from '../utils/mailer.js';
 
 // Utils
 function hashToken(token) {
