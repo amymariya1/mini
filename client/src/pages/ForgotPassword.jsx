@@ -18,10 +18,16 @@ export default function ForgotPassword() {
     }
     try {
       setLoading(true);
+      console.log("Sending password reset request for:", email);
       await requestPasswordReset({ email });
-      setStatus({ ok: true, message: "If that email exists, a reset link has been sent." });
+      setStatus({ 
+        ok: true, 
+        message: "If that email is registered with us, a reset link has been sent. Please check your inbox (and spam folder)." 
+      });
+      console.log("Password reset request sent successfully for:", email);
     } catch (err) {
-      setStatus({ ok: false, message: err.message || "Something went wrong" });
+      console.error("Password reset request failed:", err);
+      setStatus({ ok: false, message: err.message || "Something went wrong. Please try again." });
     } finally {
       setLoading(false);
     }
@@ -61,6 +67,7 @@ export default function ForgotPassword() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="input"
+                required
               />
             </label>
 
@@ -71,6 +78,10 @@ export default function ForgotPassword() {
 
           <div style={{ marginTop: 14, fontSize: 14 }}>
             Back to <Link to="/login">Sign in</Link>
+          </div>
+          
+          <div style={{ marginTop: 14, fontSize: 14 }}>
+            Don't have an account? <Link to="/register">Register as User</Link> or <Link to="/therapist-register">Register as Therapist</Link>
           </div>
         </motion.div>
       </section>

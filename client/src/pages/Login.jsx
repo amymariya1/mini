@@ -32,29 +32,53 @@ export default function Login() {
 
       // 1️⃣ Try ADMIN LOGIN
       try {
+        console.log('Attempting admin login with email:', form.email);
         const adminData = await apiAdminLogin({ email: form.email, password: form.password });
+        console.log('Admin login successful:', adminData);
         if (adminData?.token) localStorage.setItem("mm_admin_token", adminData.token);
         if (adminData?.admin) localStorage.setItem("mm_admin", JSON.stringify(adminData.admin));
         navigate("/admin/dashboard");
         return;
-      } catch (_) {
-        // Ignore admin error and fallback to user login
+      } catch (adminError) {
+        console.log('Admin login failed:', adminError.message);
+        // If it's specifically a 401 error, it means invalid credentials, so we should try user login
+        // For other errors, we might want to show them
+        if (adminError.message !== 'Invalid credentials') {
+          console.log('Admin login failed with error:', adminError.message);
+        }
+        // Continue to user login
       }
 
       // 2️⃣ USER / THERAPIST LOGIN
-      const { user } = await apiLogin(form);
-      const sessionUser = { ...user, authSource: "api" };
-      localStorage.setItem("mm_user", JSON.stringify(sessionUser));
+      console.log('Attempting user login with email:', form.email);
+      const response = await apiLogin(form);
+      console.log('User login successful:', response);
+      
+      // Check if this is a success response with user data
+      if (response?.user) {
+        const sessionUser = { ...response.user, authSource: "api" };
+        localStorage.setItem("mm_user", JSON.stringify(sessionUser));
 
-      // 🔸 ROUTE BASED ON TYPE OR AGE
-      if (user?.userType === "therapist") {
-        navigate("/therapist");
-      } else if (typeof user?.age === "number" && user.age < 18) {
-        navigate("/home-teen");
-      } else {
-        navigate("/home");
+        // 🔸 ROUTE BASED ON TYPE OR AGE
+        if (response.user?.userType === "therapist") {
+          navigate("/therapist-dashboard");
+        } else if (typeof response.user?.age === "number" && response.user.age < 18) {
+          navigate("/home-teen");
+        } else {
+          navigate("/home");
+        }
+        return;
       }
+      
+      // Check if this is an error response
+      if (response?.message) {
+        throw new Error(response.message);
+      }
+      
+      // If we get here, it's an unexpected response
+      throw new Error("Login failed - unexpected response format");
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
@@ -90,7 +114,7 @@ export default function Login() {
 
       // 🔸 ROUTING LOGIC
       if (userType === "therapist") {
-        navigate("/therapist");
+        navigate("/therapist-dashboard");
       } else if (typeof age === "number" && age < 18) {
         navigate("/home-teen");
       } else {
@@ -184,6 +208,12 @@ export default function Login() {
         </button>
       </form>
 
+      <div style={{ textAlign: "right", marginTop: 8 }}>
+        <Link to="/forgot-password" style={{ fontSize: 14, color: "#6b7280" }}>
+          Forgot password?
+        </Link>
+      </div>
+
       <button
         type="button"
         disabled={googleLoading}
@@ -219,7 +249,7 @@ export default function Login() {
       </button>
 
       <div style={{ marginTop: 16, fontSize: 14 }}>
-        Don’t have an account? <Link to="/signup">Create one</Link>
+        Don't have an account? <Link to="/register">Create one</Link> or <Link to="/therapist-register">Register as Therapist</Link>
       </div>
     </motion.div>
   );

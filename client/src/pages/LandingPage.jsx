@@ -38,6 +38,11 @@ export default function LandingPage() {
               Sign In
             </Link>
           </div>
+          <div className="hero-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', justifyContent: 'center', alignItems: 'center', marginTop: '20px' }}>
+            <Link to="/therapist-register" className="btn btn-secondary btn-lg">
+              Register as a Therapist
+            </Link>
+          </div>
         </motion.div>
       </section>
 

@@ -13,6 +13,10 @@ import Blog from "./pages/Blog";
 import BlogDetail from "./pages/BlogDetail";
 import BlogMine from "./pages/BlogMine";
 import Logout from "./pages/Logout";
+import Wishlist from "./pages/Wishlist";
+import Orders from "./pages/Orders";
+import CheckoutPayment from "./pages/CheckoutPayment";
+import OrderConfirmation from "./pages/OrderConfirmation";
 import { auth } from "./services/firebase";
 import { AnimatePresence } from "framer-motion";
 import PageTransition from "./components/PageTransition";
@@ -28,7 +32,14 @@ import HabitTracker from "./pages/HabitTracker";
 import CheckoutAddress from "./pages/CheckoutAddress";
 import Inventory from "./pages/Inventory";
 import TherapistDashboard from "./pages/TherapistDashboard";
-import TherapistRegister from "./pages/TherapistRegister"; // ✅ added import
+import TherapistRegister from "./pages/TherapistRegister";
+import AutoForgotPassword from "./pages/AutoForgotPassword";
+import TestAutoForgotPassword from "./pages/TestAutoForgotPassword";
+import DebugAutoForgotPassword from "./pages/DebugAutoForgotPassword";
+import TestAPI from "./pages/TestAPI"; // ✅ added import
+import ReferPatient from "./pages/ReferPatient";
+import About from "./pages/About";
+import Therapists from "./pages/Therapists"; // ✅ added import
 
 function isAuthenticated() {
   try {
@@ -84,6 +95,18 @@ function AnimatedRoutes() {
           }
         />
         <Route
+          path="/about"
+          element={
+            <PageTransition><About /></PageTransition>
+          }
+        />
+        <Route
+          path="/refer-patient"
+          element={
+            <PageTransition><ReferPatient /></PageTransition>
+          }
+        />
+        <Route
           path="/login"
           element={
             <PublicOnly>
@@ -99,31 +122,7 @@ function AnimatedRoutes() {
             </PublicOnly>
           }
         />
-        <Route
-          path="/therapist-register"
-          element={
-            <PublicOnly>
-              <PageTransition><TherapistRegister /></PageTransition>
-            </PublicOnly>
-          }
-        />
-        <Route
-          path="/forgot-password"
-          element={
-            <PublicOnly>
-              <PageTransition><ForgotPassword /></PageTransition>
-            </PublicOnly>
-          }
-        />
-        <Route
-          path="/reset-password"
-          element={
-            <PublicOnly>
-              <PageTransition><ResetPassword /></PageTransition>
-            </PublicOnly>
-          }
-        />
-
+        
         {/* Authenticated User Routes */}
         <Route
           path="/home"
@@ -174,6 +173,38 @@ function AnimatedRoutes() {
           }
         />
         <Route
+          path="/wishlist"
+          element={
+            <RequireAuth>
+              <PageTransition><Wishlist /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <RequireAuth>
+              <PageTransition><Orders /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/checkout/payment"
+          element={
+            <RequireAuth>
+              <PageTransition><CheckoutPayment /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/checkout/confirmation"
+          element={
+            <RequireAuth>
+              <PageTransition><OrderConfirmation /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/calendar"
           element={
             <RequireAuth>
@@ -194,6 +225,38 @@ function AnimatedRoutes() {
           element={
             <RequireAuth>
               <PageTransition><JournalEntry /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/auto-forgot-password"
+          element={
+            <RequireAuth>
+              <PageTransition><AutoForgotPassword /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/test-auto-forgot-password"
+          element={
+            <RequireAuth>
+              <PageTransition><TestAutoForgotPassword /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/debug-auto-forgot-password"
+          element={
+            <RequireAuth>
+              <PageTransition><DebugAutoForgotPassword /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/test-api"
+          element={
+            <RequireAuth>
+              <PageTransition><TestAPI /></PageTransition>
             </RequireAuth>
           }
         />
@@ -221,13 +284,41 @@ function AnimatedRoutes() {
             </RequireAuth>
           }
         />
-
+        <Route
+          path="/therapists"
+          element={
+            <RequireAuth>
+              <PageTransition><Therapists /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        
+        {/* ✅ Therapist Dashboard Route */}
+        <Route
+          path="/therapist-dashboard"
+          element={
+            <RequireAuth>
+              <PageTransition><TherapistDashboard /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        
+        {/* ✅ Therapist Registration Route */}
+        <Route
+          path="/therapist-register"
+          element={
+            <PublicOnly>
+              <PageTransition><TherapistRegister /></PageTransition>
+            </PublicOnly>
+          }
+        />
+        
         {/* ✅ Therapist Route */}
         <Route
           path="/therapist"
           element={
             <RequireAuth>
-              <PageTransition><TherapistDashboard /></PageTransition>
+              <Navigate to="/therapist-dashboard" replace />
             </RequireAuth>
           }
         />

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { findByEmail, createUser, setUserResetToken, findByResetTokenHash, clearUserResetToken } from '../utils/userStore.js';
+import { sendResetEmail } from '../utils/mailer.js'; // Import the email function
 
 // Utils
 function hashToken(token) {
@@ -68,35 +69,51 @@ export async function login(req, res) {
 export async function forgotPassword(req, res) {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+    console.log(`Forgot password request received for email: ${email}`);
+    
+    if (!email) {
+      console.log('Forgot password request failed: Email is required');
+      return res.status(400).json({ message: 'Email is required' });
+    }
 
     const user = await findByEmail(email);
     if (!user) {
-      // Do not reveal whether user exists
+      console.log(`Forgot password request: No user found with email ${email}`);
+      // Only send reset emails to registered users
       return res.json({ message: 'If that email exists, a reset link has been sent' });
     }
+
+    console.log(`Forgot password request: Found user with email ${email}`);
 
     // Generate raw token and hash
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
+    console.log(`Forgot password request: Generated token for user ${user._id}`);
+
     if (mongoose.connection.readyState === 1) {
       // Persist to DB
+      console.log(`Forgot password request: Updating user ${user._id} in database`);
       await User.updateOne(
         { _id: user._id },
         { $set: { resetPasswordTokenHash: tokenHash, resetPasswordExpires: expiresAt } }
       );
     } else {
       // In-memory fallback via utils
+      console.log(`Forgot password request: Updating user ${user._id} in memory`);
       setUserResetToken(email, rawToken, expiresAt);
     }
 
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
 
+    console.log(`Forgot password request: Sending reset email to ${email}`);
+
     // Send the email (SMTP if configured; otherwise console)
     await sendResetEmail(email, resetUrl);
+    
+    console.log(`Forgot password request: Reset email sent successfully to ${email}`);
 
     return res.json({ message: 'If that email exists, a reset link has been sent' });
   } catch (err) {
@@ -105,13 +122,78 @@ export async function forgotPassword(req, res) {
   }
 }
 
+// POST /api/auth/forgot-password-auto (new endpoint for automatic reset)
+export async function forgotPasswordAuto(req, res) {
+  try {
+    const { email } = req.body;
+    console.log(`Automatic forgot password request received for email: ${email}`);
+    
+    if (!email) {
+      console.log('Automatic forgot password request failed: Email is required');
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await findByEmail(email);
+    if (!user) {
+      console.log(`Automatic forgot password request: No user found with email ${email}`);
+      // Only send reset emails to registered users
+      // Maintain consistency with original forgotPassword function for security
+      return res.status(200).json({ message: 'If that email exists, a reset link has been sent' });
+    }
+
+    console.log(`Automatic forgot password request: Found user with email ${email}`);
+
+    // Generate raw token and hash
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    console.log(`Automatic forgot password request: Generated token for user ${user._id}`);
+
+    if (mongoose.connection.readyState === 1) {
+      // Persist to DB
+      console.log(`Automatic forgot password request: Updating user ${user._id} in database`);
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { resetPasswordTokenHash: tokenHash, resetPasswordExpires: expiresAt } }
+      );
+    } else {
+      // In-memory fallback via utils
+      console.log(`Automatic forgot password request: Updating user ${user._id} in memory`);
+      setUserResetToken(email, rawToken, expiresAt);
+    }
+
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
+
+    console.log(`Automatic forgot password request: Sending reset email to ${email}`);
+
+    // Send the email (SMTP if configured; otherwise console)
+    await sendResetEmail(email, resetUrl);
+    
+    console.log(`Automatic forgot password request: Reset email sent successfully to ${email}`);
+
+    console.log('Automatic forgot password request: Returning success response');
+    return res.status(200).json({ message: 'If that email exists, a reset link has been sent' });
+  } catch (err) {
+    console.error('Automatic forgot password error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+}
+
 // POST /api/auth/reset-password
 export async function resetPassword(req, res) {
   try {
     const { token, password } = req.body;
-    if (!token || !password) return res.status(400).json({ message: 'Token and new password are required' });
+    console.log('Reset password request received');
+    
+    if (!token || !password) {
+      console.log('Reset password request failed: Token and new password are required');
+      return res.status(400).json({ message: 'Token and new password are required' });
+    }
 
     const tokenHash = hashToken(token);
+    console.log('Reset password request: Hashed token for lookup');
 
     let user = null;
     if (mongoose.connection.readyState === 1) {
@@ -124,7 +206,12 @@ export async function resetPassword(req, res) {
       user = await findByResetTokenHash(tokenHash);
     }
 
-    if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
+    if (!user) {
+      console.log('Reset password request failed: Invalid or expired token');
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
+    console.log(`Reset password request: Found user ${user._id} with valid token`);
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -134,10 +221,12 @@ export async function resetPassword(req, res) {
       user.resetPasswordTokenHash = null;
       user.resetPasswordExpires = null;
       await user.save();
+      console.log(`Reset password request: Updated password for user ${user._id} in database`);
     } else {
       // update in-memory user and clear token
       user.passwordHash = passwordHash;
       clearUserResetToken(user.email);
+      console.log(`Reset password request: Updated password for user ${user._id} in memory`);
     }
 
     return res.json({ message: 'Password has been reset successfully' });

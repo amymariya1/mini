@@ -13,12 +13,24 @@ export default function ResetPassword() {
   const [confirm, setConfirm] = useState("");
   const [status, setStatus] = useState({ ok: false, message: "" });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // For password visibility toggle
 
   useEffect(() => {
     if (!token) {
       setStatus({ ok: false, message: "Missing or invalid reset token." });
     }
   }, [token]);
+
+  // Function to validate password strength
+  function validatePassword(password) {
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+    const isLongEnough = password.length >= 8;
+
+    return hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar && isLongEnough;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -35,11 +47,15 @@ export default function ResetPassword() {
       setStatus({ ok: false, message: "Passwords do not match." });
       return;
     }
+    if (!validatePassword(password)) {
+      setStatus({ ok: false, message: "Password must contain at least 8 characters including uppercase, lowercase, number, and special character." });
+      return;
+    }
     try {
       setLoading(true);
       await apiResetPassword({ token, password });
-      setStatus({ ok: true, message: "Password updated. You can now sign in." });
-      setTimeout(() => navigate("/login"), 1200);
+      setStatus({ ok: true, message: "Password updated successfully. You can now sign in." });
+      setTimeout(() => navigate("/login"), 3000);
     } catch (err) {
       setStatus({ ok: false, message: err.message || "Failed to reset password" });
     } finally {
@@ -74,14 +90,32 @@ export default function ResetPassword() {
           <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
             <label>
               <div style={{ fontSize: 14, marginBottom: 6 }}>New password</div>
-              <input
-                type="password"
-                name="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="input"
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="input"
+                  style={{ width: "100%" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer"
+                  }}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </label>
 
             <label>

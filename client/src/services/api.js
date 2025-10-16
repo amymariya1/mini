@@ -1,8 +1,10 @@
 import { auth } from './firebase';
-const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
 async function request(path, options = {}) {
   try {
+    console.log(`API: Making request to ${path}`, options);
+    
     // Only set Content-Type for requests that actually send a body
     const hasBody = options.body !== undefined && options.body !== null;
     const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
@@ -11,21 +13,45 @@ async function request(path, options = {}) {
       ...options,
       headers,
     });
+    
+    console.log(`API: Response received from ${path}`, res.status, res.statusText);
 
     const contentType = res.headers.get('content-type') || '';
     const isJSON = contentType.includes('application/json');
-    const data = isJSON ? await res.json() : await res.text();
+    console.log(`API: Content type: ${contentType}, isJSON: ${isJSON}`);
+    
+    let data;
+    if (isJSON) {
+      try {
+        data = await res.json();
+        console.log(`API: Parsed JSON response data:`, data);
+      } catch (parseError) {
+        console.error(`API: Failed to parse JSON response:`, parseError);
+        // If JSON parsing fails, try to get text
+        const text = await res.text();
+        console.log(`API: Raw response text:`, text);
+        data = text;
+      }
+    } else {
+      data = await res.text();
+      console.log(`API: Response text:`, data);
+    }
 
     if (!res.ok) {
       const message = (isJSON && data && data.message) ? data.message : (res.statusText || 'Request failed');
+      console.error(`API: Request failed with status ${res.status}:`, message);
       throw new Error(message);
     }
 
+    console.log(`API: Request to ${path} successful`);
     return data;
   } catch (err) {
+    console.error(`API: Error making request to ${path}:`, err);
     if (err.name === 'TypeError') {
       // Fetch network error (server down / CORS / DNS / SSL etc.)
-      throw new Error('Network error: failed to reach API. Is the server running at ' + baseURL + '?');
+      const error = new Error('Network error: failed to reach API. Is the server running at ' + baseURL + '?');
+      console.error('API: Network error detected:', error.message);
+      throw error;
     }
     throw err;
   }
@@ -98,17 +124,86 @@ export async function registerTherapist(payload) {
 }
 
 export async function requestPasswordReset(payload) {
-  return request('/auth/forgot-password', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  console.log('API: Requesting password reset for', payload.email);
+  try {
+    const result = await request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    console.log('API: Password reset request successful');
+    return result;
+  } catch (error) {
+    console.error('API: Password reset request failed:', error.message);
+    throw error;
+  }
+}
+
+// New function for automatic password reset (sends to current user's email)
+export async function requestPasswordResetForCurrentUser() {
+  console.log('API: Requesting password reset for current user');
+  try {
+    // Get current user's email from localStorage
+    const userRaw = localStorage.getItem('mm_user');
+    console.log('API: Raw user data from localStorage:', userRaw);
+    
+    if (!userRaw) {
+      const error = new Error('No user logged in');
+      console.error('API: No user logged in');
+      throw error;
+    }
+    
+    let user;
+    try {
+      user = JSON.parse(userRaw);
+      console.log('API: Parsed user data:', user);
+    } catch (parseError) {
+      const error = new Error('Invalid user data');
+      console.error('API: Invalid user data:', parseError);
+      throw error;
+    }
+    
+    if (!user.email) {
+      const error = new Error('User email not found');
+      console.error('API: User email not found in user data');
+      throw error;
+    }
+    
+    console.log('API: Sending password reset to current user:', user.email);
+    const result = await request('/auth/forgot-password-auto', {
+      method: 'POST',
+      body: JSON.stringify({ email: user.email }),
+    });
+    console.log('API: Password reset request successful for current user. Result:', result);
+    
+    // Ensure we return a proper result
+    if (result === undefined) {
+      console.log('API: Result was undefined, returning empty object');
+      return {};
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('API: Password reset request failed for current user:', error);
+    console.error('API: Error name:', error.name);
+    console.error('API: Error message:', error.message);
+    console.error('API: Error stack:', error.stack);
+    throw error;
+  }
 }
 
 export async function resetPassword(payload) {
-  return request('/auth/reset-password', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  console.log('API: Resetting password with token');
+  try {
+    const result = await request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    console.log('API: Password reset successful');
+    return result;
+  } catch (error) {
+    console.error('API: Password reset failed:', error.message);
+    throw error;
+  }
 }
 
 // Admin API
@@ -171,17 +266,11 @@ export async function adminGetProducts() {
 }
 
 export async function adminCreateProduct(productData) {
-  const res = await fetch("/api/admin/products", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("mm_admin_token")}`,
-    },
+  return request('/admin/products', {
+    method: 'POST',
+    headers: adminHeaders(),
     body: JSON.stringify(productData),
   });
-
-  if (!res.ok) throw new Error("Failed to create product");
-  return await res.json();
 }
 
 export async function adminUpdateProduct(id, payload) {
@@ -335,36 +424,74 @@ export async function createMessage(payload) {
   return request('/messages', { method: 'POST', body: JSON.stringify(payload) });
 }
 
+// Public Therapists
+export async function listTherapists() {
+  return request('/therapists');
+}
+
+// Cart functions
+export async function getCart(userId) {
+  return request(`/cart/${userId}`);
+}
+
+export async function saveCart(userId, items) {
+  return request(`/cart/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ items }),
+  });
+}
+
+export async function updateCart(userId, items) {
+  return request(`/cart/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  });
+}
+
+export async function clearCart(userId) {
+  return request(`/cart/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
 // ✅ NEW FUNCTION to update stock only
 export async function adminUpdateProductStock(id, stock) {
-  const res = await fetch(`/api/admin/products/${id}/stock`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("mm_admin_token")}`,
-    },
+  return request(`/admin/products/${id}/stock`, {
+    method: 'PUT',
+    headers: adminHeaders(),
     body: JSON.stringify({ stock }),
   });
-
-  if (!res.ok) throw new Error("Failed to update stock");
-  return res.json();
 }
 
 export async function createTherapist(data) {
-  const token = localStorage.getItem("mm_admin_token");
-  const res = await fetch("/api/admin/add-therapist", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-admin-token": token,
-    },
+  return request('/admin/add-therapist', {
+    method: 'POST',
+    headers: adminHeaders(),
     body: JSON.stringify(data),
   });
-
-  if (!res.ok) throw new Error("Failed to add therapist");
-  return await res.json();
 }
 
+// Chat functions
+export async function sendMessage(payload) {
+  return request('/chat/send', {
+    method: 'POST',
+    headers: userHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getChatHistory(userId, therapistId) {
+  return request(`/chat/history/${userId}/${therapistId}`, {
+    headers: userHeaders(),
+  });
+}
+
+export async function markMessageAsRead(messageId) {
+  return request(`/chat/read/${messageId}`, {
+    method: 'PUT',
+    headers: userHeaders(),
+  });
+}
 
 // Optional: Call external LLM for richer answers
 // Configure via REACT_APP_LLM_API_URL (full URL, e.g., https://your-llm-host/assistant/ask)

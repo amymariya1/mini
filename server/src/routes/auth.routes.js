@@ -1,7 +1,8 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import User from "../models/User.js"; // ✅ Your Mongoose User model
+import User from "../models/User.js";
+import { forgotPassword, resetPassword, forgotPasswordAuto } from "../controllers/auth.controller.js"; // Import controller functions
 
 const router = express.Router();
 
@@ -135,56 +136,13 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// 🔹 FORGOT PASSWORD
-router.post("/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(400).json({ message: "User not found" });
+// 🔹 FORGOT PASSWORD - Use controller function
+router.post("/forgot-password", forgotPassword);
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || "supersecret", { expiresIn: "15m" });
+// 🔹 FORGOT PASSWORD AUTO - Use controller function (new endpoint)
+router.post("/forgot-password-auto", forgotPasswordAuto);
 
-    // Optional: Send reset link by email
-    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password/${token}`;
-
-    res.json({
-      success: true,
-      message: "Password reset link sent to your email",
-      // In a real app, you would send the email here
-      // For demo, we return the link
-      resetLink,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-// 🔹 RESET PASSWORD
-router.post("/reset-password", async (req, res) => {
-  try {
-    const { token, password } = req.body;
-
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "supersecret");
-    const user = await User.findById(decoded.id);
-    if (!user)
-      return res.status(400).json({ message: "Invalid token" });
-
-    // Hash new password
-    const passwordHash = await bcrypt.hash(password, 10);
-    user.passwordHash = passwordHash;
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "Password reset successful",
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+// 🔹 RESET PASSWORD - Use controller function
+router.post("/reset-password", resetPassword);
 
 export default router;

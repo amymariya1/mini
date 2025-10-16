@@ -56,8 +56,16 @@ export default function Navbar() {
               <Link to="/" className="nav-link">Home</Link>
             </motion.span>
           )}
+          {!hideNavLinks && (
+            <motion.span whileHover={hover} whileTap={tap}>
+              <Link to="/shopping" className="nav-link">Shop</Link>
+            </motion.span>
+          )}
           <motion.span whileHover={hover} whileTap={tap}>
-            <a href="#" className="nav-link">About</a>
+            <Link to="/about" className="nav-link">About</Link>
+          </motion.span>
+          <motion.span whileHover={hover} whileTap={tap}>
+            <Link to="/refer-patient" className="nav-link">Refer a Patient</Link>
           </motion.span>
           <motion.span whileHover={hover} whileTap={tap}>
             <a href="#" className="nav-link">Contact</a>

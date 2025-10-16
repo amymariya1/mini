@@ -56,6 +56,25 @@ router.patch("/users/:id/toggle-status", requireAdmin, toggleUserStatus);
 // ✅ Pending therapists
 router.get("/therapists/pending", requireAdmin, listPendingTherapists);
 
+// ✅ List all approved therapists
+router.get("/therapists", requireAdmin, async (req, res) => {
+  try {
+    const therapists = await User.find({ 
+      userType: "therapist", 
+      isApproved: true,
+      isActive: true
+    }).select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires");
+    
+    return res.json({ 
+      success: true, 
+      therapists 
+    });
+  } catch (err) {
+    console.error('List therapists error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ✅ Approve therapist
 router.patch("/therapists/:id/approve", requireAdmin, approveTherapist);
 

@@ -217,7 +217,7 @@ export default function TherapistRegister() {
       </form>
 
       <div style={{ marginTop: 16, fontSize: 14 }}>
-        Already have an account? <Link to="/login">Sign in</Link>
+        Already have an account? <Link to="/login">Sign in</Link> or <Link to="/forgot-password">Forgot password?</Link>
       </div>
     </motion.div>
   );

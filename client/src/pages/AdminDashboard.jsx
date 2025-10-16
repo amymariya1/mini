@@ -17,6 +17,217 @@ import {
 } from "../services/api";
 import "../styles/AdminDashboard.css";
 
+const OrdersManagement = () => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [statusModal, setStatusModal] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [statusNote, setStatusNote] = useState('');
+
+  const statusOptions = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'processing', label: 'Processing' },
+    { value: 'shipped', label: 'Shipped' },
+    { value: 'delivered', label: 'Delivered' },
+    { value: 'cancelled', label: 'Cancelled' }
+  ];
+
+  const statusColors = {
+    pending: '#ff9800',
+    confirmed: '#2196f3',
+    processing: '#9c27b0',
+    shipped: '#ff5722',
+    delivered: '#4caf50',
+    cancelled: '#f44336'
+  };
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:5002/api/orders');
+      const data = await response.json();
+      if (data.success) {
+        setOrders(data.orders);
+      }
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const handleStatusUpdate = async () => {
+    if (!selectedOrder || !newStatus) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5002/api/orders/${selectedOrder._id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          note: statusNote
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        // Update order in state
+        setOrders(orders.map(order => 
+          order._id === selectedOrder._id ? data.order : order
+        ));
+        
+        // Close modal and reset
+        setStatusModal(false);
+        setSelectedOrder(null);
+        setNewStatus('');
+        setStatusNote('');
+        
+        alert('Order status updated successfully!');
+      } else {
+        alert('Failed to update order status: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status');
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    const option = statusOptions.find(opt => opt.value === status);
+    return option ? option.label : status;
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  return (
+    <div>
+      <h3>Order Management</h3>
+      <p>Manage and track all customer orders</p>
+      
+      {loading ? (
+        <p>Loading orders...</p>
+      ) : orders.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+          <h4>No orders found</h4>
+          <p>There are no orders to display yet.</p>
+        </div>
+      ) : (
+        <div className="product-grid">
+          {orders.map(order => (
+            <div key={order._id} className="user-card" style={{ 
+              borderLeft: `4px solid ${statusColors[order.status] || '#9e9e9e'}`
+            }}>
+              <div>
+                <h4>Order #{order.orderId}</h4>
+                <p><strong>Customer:</strong> {order.userEmail}</p>
+                <p><strong>Date:</strong> {formatDate(order.createdAt)}</p>
+                <p><strong>Total:</strong> ₹{order.total.toFixed(2)}</p>
+                <p><strong>Status:</strong> 
+                  <span style={{
+                    backgroundColor: statusColors[order.status] || '#9e9e9e',
+                    color: 'white',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.8em'
+                  }}>
+                    {getStatusLabel(order.status)}
+                  </span>
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                <button 
+                  className="cta-btn"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setStatusModal(true);
+                    setNewStatus(order.status);
+                  }}
+                >
+                  Update Status
+                </button>
+                <button 
+                  className="cta-btn secondary"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                  }}
+                >
+                  View Details
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Status Update Modal */}
+      {statusModal && selectedOrder && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: '500px' }}>
+            <h3>Update Order Status</h3>
+            <p><strong>Order #{selectedOrder.orderId}</strong></p>
+            
+            <div style={{ margin: '15px 0' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>New Status</label>
+              <select 
+                className="input"
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+              >
+                {statusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div style={{ margin: '15px 0' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Note (Optional)</label>
+              <textarea 
+                className="input"
+                value={statusNote}
+                onChange={(e) => setStatusNote(e.target.value)}
+                placeholder="Add a note about this status update..."
+                rows="3"
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button 
+                className="cta-btn"
+                onClick={handleStatusUpdate}
+              >
+                Update Status
+              </button>
+              <button 
+                className="cta-btn secondary"
+                onClick={() => {
+                  setStatusModal(false);
+                  setSelectedOrder(null);
+                  setNewStatus('');
+                  setStatusNote('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // === ICONS ===
 const UsersIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -83,6 +294,7 @@ const NAV_ITEMS = [
   { id: "therapists", label: "Therapists", icon: <TherapistsIcon /> },
   { id: "pending-therapists", label: "Pending Therapists", icon: <PendingIcon /> },
   { id: "products", label: "Products", icon: <ProductsIcon /> },
+  { id: "orders", label: "Orders", icon: <ProductsIcon /> },
   { id: "posts", label: "Posts", icon: <PostsIcon /> },
   { id: "questions", label: "Questions", icon: <QuestionsIcon /> },
 ];
@@ -598,6 +810,11 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ORDERS TAB */}
+        {tab === "orders" && (
+          <OrdersManagement />
         )}
       </div>
 

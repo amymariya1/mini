@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 // MongoDB connection URI - using the same as the server
-const mongoUri = 'mongodb://127.0.0.1:27017/mindmirror2';
+const mongoUri = 'mongodb://127.0.0.1:27017/mindmirror';
 
 // Admin schema
 const adminSchema = new mongoose.Schema({

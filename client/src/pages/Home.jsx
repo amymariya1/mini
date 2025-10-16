@@ -3,6 +3,9 @@ import { motion } from "framer-motion";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import SupportChatbot from "../components/SupportChatbot";
+import NotificationBanner from "../components/NotificationBanner";
+import { listProducts } from "../services/api";
+
 
 // DASS-21 questionnaire constants (kept in sync with Assessments.jsx)
 const DASS_ITEMS = [
@@ -833,44 +836,584 @@ function MoodCompanionGame() {
                 <h3 style={{ margin: 0 }}>Wellness Tree</h3>
               </div>
               <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
-                Level {level} • {totalCheckins} check-ins
+                Check-ins: {totalCheckins} • Level {level}
               </div>
             </div>
 
-            <div style={{ position: "relative", height: 200, marginTop: 12 }}>
-              {/* Pot */}
-              <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 110, height: 32, background: "#9ca3af", borderRadius: "6px 6px 12px 12px" }} />
-              {/* Stem */}
-              <div style={{ position: "absolute", bottom: 32, left: "50%", transform: "translateX(-50%)", width: 12, height: 20 + level * 12, background: "#16a34a", borderRadius: 6, boxShadow: "0 6px 12px rgba(22,163,74,0.25)" }} />
-              {/* Leaves based on level */}
-              {Array.from({ length: level }).map((_, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.05 * i }}
+            {/* Tree */}
+            <div style={{ background: "white", border: "1px solid rgba(148, 163, 184, 0.15)", borderRadius: 12, padding: 16, textAlign: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", marginTop: 16 }}>
+              <motion.div
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                style={{ display: "inline-block", position: "relative" }}
+              >
+                <div
+                  aria-label="wellness tree"
                   style={{
-                    position: "absolute",
-                    bottom: 48 + i * 12,
-                    left: `calc(50% - ${24 + (i % 2 ? 16 : -16)}px)`,
-                    width: 26,
-                    height: 26,
-                    background: "#22c55e",
+                    width: 140,
+                    height: 140,
                     borderRadius: "50%",
-                    boxShadow: "0 6px 12px rgba(34,197,94,0.25)"
+                    background: activeMood.color,
+                    boxShadow: `0 12px 24px ${activeMood.color}33`,
+                    position: "relative",
+                    margin: "0 auto"
                   }}
-                />
-              ))}
+                >
+                  {/* Leaves */}
+                  <div style={{ position: "absolute", top: 20, left: 20, width: 100, height: 100, borderRadius: "50%", background: activeMood.color, boxShadow: `0 6px 12px ${activeMood.color}33` }} />
+                  <div style={{ position: "absolute", top: 40, left: 40, width: 60, height: 60, borderRadius: "50%", background: activeMood.color, boxShadow: `0 6px 12px ${activeMood.color}33` }} />
+                  <div style={{ position: "absolute", top: 60, left: 60, width: 20, height: 20, borderRadius: "50%", background: activeMood.color, boxShadow: `0 6px 12px ${activeMood.color}33` }} />
+                  {/* Trunk */}
+                  <div style={{ position: "absolute", bottom: -20, left: 60, width: 20, height: 40, borderRadius: "0 0 10px 10px", background: "#111827" }} />
+                </div>
+              </motion.div>
+              <div style={{ marginTop: 10, fontSize: 13, color: "#64748b" }}>Growth: {progressToNext * 100}%</div>
             </div>
 
-            {/* Progress */}
-            <div style={{ marginTop: 10, fontSize: 13, color: "#64748b" }}>Growth towards next level</div>
-            <div style={{ marginTop: 8, height: 8, background: "#e5e7eb", borderRadius: 999, overflow: "hidden" }}>
-              <motion.div style={{ height: "100%", background: "linear-gradient(90deg,#4ade80,#22d3ee)", width: `${progressToNext * 100}%` }} />
+            {/* Progress Bar */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontWeight: 700, color: "#334155", marginBottom: 8 }}>Level Progress</div>
+              <div style={{ width: "100%", height: "6px", background: "rgba(255,255,255,0.3)", borderRadius: "3px", overflow: "hidden" }}>
+                <motion.div
+                  style={{
+                    height: "100%",
+                    background: "linear-gradient(90deg, #4ade80 0%, #22d3ee 50%, #a855f7 100%)",
+                    borderRadius: "3px",
+                  }}
+                  initial={{ width: "0%" }}
+                  animate={{ width: `${progressToNext * 100}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
             </div>
           </motion.div>
         </section>
       </div>
+    </div>
+  );
+}
+
+// Shopping Tab Component
+const CATEGORIES = [
+  { name: "All", value: "all" },
+  { name: "Meditation", value: "Meditation" },
+  { name: "Sleep", value: "Sleep" },
+  { name: "Yoga", value: "Yoga" },
+  { name: "Aromatherapy", value: "Aromatherapy" },
+  { name: "Books", value: "Books" },
+  { name: "Crystals", value: "Crystals" },
+  { name: "Wellness", value: "Wellness" }
+];
+
+function ShoppingTab({ onBack }) {
+  const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("featured");
+  const [cart, setCart] = useState([]);
+  const [showCart, setShowCart] = useState(false);
+  const navigate = useNavigate();
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('mm_cart');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCart(parsed);
+      }
+    } catch (_) {}
+  }, []);
+
+  // Persist cart to localStorage when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('mm_cart', JSON.stringify(cart));
+    } catch (_) {}
+  }, [cart]);
+
+  // Load from backend
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await listProducts();
+        const list = (data.products || []).map(p => ({
+          id: p._id,
+          name: p.name,
+          price: p.price,
+          originalPrice: p.originalPrice || 0,
+          rating: p.rating || 0,
+          reviews: p.reviews || 0,
+          image: p.image || '🛍️',
+          category: p.category || 'General',
+          description: p.description || '',
+          inStock: p.inStock !== false,
+          badge: p.badge || ''
+        }));
+        setProducts(list);
+        setFilteredProducts(list);
+      } catch (err) {
+        // keep empty state if API unavailable
+        setProducts([]);
+        setFilteredProducts([]);
+      }
+    }
+    load();
+  }, []);
+
+  // Filter products based on category and search
+  useEffect(() => {
+    let filtered = [...products];
+
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(product => product.category === selectedCategory);
+    }
+
+    if (searchTerm) {
+      filtered = filtered.filter(product =>
+        (product.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (product.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Sort products
+    switch (sortBy) {
+      case "price-low":
+        filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
+        break;
+      case "price-high":
+        filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+        break;
+      case "rating":
+        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        break;
+      case "newest":
+        filtered.sort((a, b) => String(b.id).localeCompare(String(a.id))); // fallback if no createdAt here
+        break;
+      default:
+        // Keep original order for "featured"
+        break;
+    }
+
+    setFilteredProducts(filtered);
+  }, [selectedCategory, searchTerm, sortBy, products]);
+
+  const addToCart = (product) => {
+    setCart(prev => {
+      const existingItem = prev.find(item => item.id === product.id);
+      if (existingItem) {
+        return prev.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { ...product, quantity: 1 }];
+    });
+  };
+
+  // Add item and open cart immediately
+  const buyNow = (product) => {
+    if (!product?.inStock) return;
+    addToCart(product);
+    setShowCart(true);
+  };
+
+  const removeFromCart = (productId) => {
+    setCart(prev => prev.filter(item => item.id !== productId));
+  };
+
+  const updateQuantity = (productId, quantity) => {
+    if (quantity <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    setCart(prev =>
+      prev.map(item =>
+        item.id === productId ? { ...item, quantity } : item
+      )
+    );
+  };
+
+  const getTotalPrice = () => {
+    return cart.reduce((total, item) => total + ((item.price || 0) * item.quantity), 0);
+  };
+
+  const getTotalItems = () => {
+    return cart.reduce((total, item) => total + item.quantity, 0);
+  };
+
+  const handleProductClick = (productId) => {
+    navigate(`/product/${productId}`);
+  };
+
+  return (
+    <div className="shopping-page">
+      {/* Header */}
+      <motion.header
+        initial={{ opacity: 0, y: -20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "24px 24px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 24 }}>🛍️</span>
+            <h2 style={{ margin: 0 }}>Shop</h2>
+          </div>
+          <motion.button
+            type="button"
+            onClick={onBack}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              padding: "10px 16px",
+              borderRadius: "8px",
+              border: "2px solid #e5e7eb",
+              background: "white",
+              color: "#374151",
+              fontWeight: 600,
+              fontSize: "14px",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+            }}
+          >
+            Back
+          </motion.button>
+        </div>
+      </motion.header>
+
+      {/* Filters */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, color: "#334155" }}>Category:</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "2px solid #e5e7eb",
+                background: "white",
+                color: "#374151",
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+              }}
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, color: "#334155" }}>Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "2px solid #e5e7eb",
+                background: "white",
+                color: "#374151",
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+              }}
+            >
+              <option value="featured">Featured</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="rating">Rating</option>
+              <option value="newest">Newest</option>
+            </select>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, color: "#334155" }}>Search:</span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search products..."
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "2px solid #e5e7eb",
+                background: "white",
+                color: "#374151",
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+              }}
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Products Grid */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, padding: "12px 24px" }}>
+          {filteredProducts.map((product) => (
+            <motion.div
+              key={product.id}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.6 + (filteredProducts.indexOf(product) * 0.1), duration: 0.3 }}
+              style={{
+                background: "white",
+                padding: "16px",
+                borderRadius: "12px",
+                border: "1px solid rgba(148, 163, 184, 0.1)",
+                textAlign: "center",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                cursor: "pointer"
+              }}
+              onClick={() => handleProductClick(product.id)}
+            >
+              <div style={{ fontSize: "32px", marginBottom: "8px" }}>
+                {product.image}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: "16px", color: "#1f2937", marginBottom: "8px" }}>
+                {product.name}
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, color: "#1f2937", marginBottom: "4px" }}>
+                ${product.price.toFixed(2)}
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {product.badge}
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {product.inStock ? "In Stock" : "Out of Stock"}
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {product.rating}★ ({product.reviews} reviews)
+              </div>
+              <motion.button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); buyNow(product); }}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  border: "2px solid #e5e7eb",
+                  background: "white",
+                  color: "#374151",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                }}
+              >
+                Buy Now
+              </motion.button>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Cart */}
+      {showCart && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{ 
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            style={{ 
+              background: "white",
+              padding: "24px",
+              borderRadius: "12px",
+              width: "90%",
+              maxWidth: "600px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.1)"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>Shopping Cart</h3>
+              <motion.button
+                type="button"
+                onClick={() => setShowCart(false)}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  border: "2px solid #e5e7eb",
+                  background: "white",
+                  color: "#374151",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                }}
+              >
+                Close
+              </motion.button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {cart.map((item) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.6 + (cart.indexOf(item) * 0.1), duration: 0.3 }}
+                  style={{
+                    background: "white",
+                    padding: "16px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(148, 163, 184, 0.1)",
+                    textAlign: "center",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ fontSize: "32px", marginBottom: "8px" }}>
+                      {item.image}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: "16px", color: "#1f2937", marginBottom: "8px" }}>
+                      {item.name}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <motion.button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, item.quantity - 1); }}
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e5e7eb",
+                        background: "white",
+                        color: "#374151",
+                        fontWeight: 600,
+                        fontSize: "14px",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                      }}
+                    >
+                      -
+                    </motion.button>
+                    <div style={{ fontSize: "24px", fontWeight: 800, color: "#1f2937", marginBottom: "4px" }}>
+                      {item.quantity}
+                    </div>
+                    <motion.button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, item.quantity + 1); }}
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e5e7eb",
+                        background: "white",
+                        color: "#374151",
+                        fontWeight: 600,
+                        fontSize: "14px",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                      }}
+                    >
+                      +
+                    </motion.button>
+                  </div>
+                  <div style={{ fontSize: "24px", fontWeight: 800, color: "#1f2937", marginBottom: "4px" }}>
+                    ${item.price.toFixed(2)}
+                  </div>
+                  <motion.button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); removeFromCart(item.id); }}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: "8px",
+                      border: "2px solid #e5e7eb",
+                      background: "white",
+                      color: "#374151",
+                      fontWeight: 600,
+                      fontSize: "14px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                    }}
+                  >
+                    Remove
+                  </motion.button>
+                </motion.div>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: "16px", color: "#1f2937" }}>
+                Total: ${getTotalPrice().toFixed(2)}
+              </div>
+              <motion.button
+                type="button"
+                onClick={() => setShowCart(false)}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  border: "2px solid #e5e7eb",
+                  background: "white",
+                  color: "#374151",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                }}
+              >
+                Checkout
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -945,7 +1488,7 @@ function WeeklyGraph({ history }) {
         {/* grid lines */}
         {[0,1,2,3,4].map(i => {
           const y = padding + i * ((height - padding*2)/4);
-          return <line key={i} x1={padding} x2={width-padding} y1={y} y2={y} stroke="#e5e7eb" strokeDasharray="4 4" />
+          return <line key={i} x1={padding} x2={width-padding} y1={y} y2={y} stroke="#e5e7eb" strokeDasharray="4 4" />;
         })}
 
         {/* axes */}
@@ -980,9 +1523,9 @@ function WeeklyGraph({ history }) {
         <div style={{ marginTop: 8, padding: "8px 10px", background: "#0f172a", color: "white", borderRadius: 8, fontSize: 12, display: 'inline-block' }}>
           <div style={{ opacity: 0.8 }}>{hover.date}</div>
           <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-            <Legend color="#ef4444" label={`D: ${hover.d ?? '-'}`} />
-            <Legend color="#f59e0b" label={`A: ${hover.a ?? '-'}`} />
-            <Legend color="#8b5cf6" label={`S: ${hover.s ?? '-'}`} />
+            <Legend color="#ef4444" label={`D: ${hover.d ?? '-'}  `} />
+            <Legend color="#f59e0b" label={`A: ${hover.a ?? '-'}  `} />
+            <Legend color="#8b5cf6" label={`S: ${hover.s ?? '-'}  `} />
           </div>
         </div>
       )}
@@ -1008,6 +1551,7 @@ function Legend({ color, label }) {
 export default function Home() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState(null); // null, 'shopping', or 'blog'
   
   // Cached assessment result and personalized tips for hero section
   const savedAssessment = useMemo(() => {
@@ -1111,10 +1655,10 @@ export default function Home() {
   };
 
   return (
-    <div style={{ backgroundColor: '#ffffff', minHeight: '100vh' }}>
-      <div className="landing-content">
-        <Navbar />
-
+    <div>
+      <Navbar />
+      <NotificationBanner />
+      <div className="app-container">
         {/* Sidebar */}
         <aside className="sidebar" style={{
           position: 'fixed', top: 64, left: 0, bottom: 0, width: sidebarOpen ? 240 : 0,
@@ -1129,22 +1673,30 @@ export default function Home() {
             )}
           </div>
           <nav style={{ display: 'grid', gap: 8 }}>
-            <Link to="/shopping" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}>
+            <button 
+              className="btn btn-primary" 
+              style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}
+              onClick={() => navigate('/shopping')}
+            >
               <span>🛍️</span>
               <span>Shopping</span>
-            </Link>
-            <Link to="/blog" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}>
+            </button>
+            <button 
+              className="btn btn-primary" 
+              style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}
+              onClick={() => navigate('/blog')}
+            >
               <span>📝</span>
               <span>Blog</span>
-            </Link>
-            <Link to="/calendar" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}>
-              <span>📅</span>
-              <span>Calendar</span>
-            </Link>
-            <Link to="/habits" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}>
-              <span>✅</span>
-              <span>Habit Tracker</span>
-            </Link>
+            </button>
+            <button 
+              className="btn btn-primary" 
+              style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}
+              onClick={() => navigate('/therapists')}
+            >
+              <span>👩‍⚕️</span>
+              <span>Book Therapist</span>
+            </button>
           </nav>
         </aside>
         
@@ -1168,247 +1720,341 @@ export default function Home() {
         </div>
 
         <main className="calm-main" style={{ marginLeft: sidebarOpen ? 260 : 20, padding: '24px' }}>
-          {/* Simple Hero Section */}
-          <section style={{ textAlign: 'center', padding: '40px 0', borderBottom: '1px solid #e9ecef', marginBottom: '40px' }}>
-            <h1 style={{ fontSize: '2rem', fontWeight: '600', color: '#000000', marginBottom: '16px' }}>
-              {getGreetingMessage()}
-            </h1>
-            <p style={{ fontSize: '1.1rem', color: '#6c757d', maxWidth: '600px', margin: '0 auto 32px' }}>
-              Take a moment for your mental wellness. Your journey starts here.
-            </p>
-            
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
+          {/* Tab Navigation */}
+          {activeTab && (
+            <div style={{ marginBottom: '20px' }}>
               <button 
-                className="btn btn-primary" 
-                onClick={() => navigate('/assessments')}
-                style={{ backgroundColor: '#f8f9fa', borderColor: '#e9ecef', color: '#000000', padding: '12px 24px' }}
+                onClick={() => setActiveTab(null)}
+                style={{ 
+                  background: '#f8f9fa', 
+                  border: '1px solid #e9ecef', 
+                  padding: '8px 16px', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  color: '#000000'
+                }}
               >
-                🧠 Mind Check
-              </button>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => navigate('/journal')}
-                style={{ padding: '12px 24px' }}
-              >
-                📝 Journal
+                ← Back to Home
               </button>
             </div>
-          </section>
+          )}
 
-          {/* Quick Access Section */}
-          <section style={{ marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#000000', marginBottom: '24px', textAlign: 'center' }}>
-              Quick Access
-            </h2>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
-              <div 
-                className="card" 
-                style={{ padding: '24px', textAlign: 'center', border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/shopping')}
-              >
-                <span style={{ fontSize: '2rem', marginBottom: '16px', display: 'block' }}>🛍️</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000000', marginBottom: '8px' }}>Wellness Shop</h3>
-                <p style={{ color: '#6c757d', marginBottom: '16px' }}>Discover products to support your mental wellness journey</p>
-                <button className="btn btn-secondary" style={{ padding: '8px 16px' }}>
-                  Explore Shop
-                </button>
-              </div>
-              
-              <div 
-                className="card" 
-                style={{ padding: '24px', textAlign: 'center', border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/chat')}
-              >
-                <span style={{ fontSize: '2rem', marginBottom: '16px', display: 'block' }}>💬</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000000', marginBottom: '8px' }}>Community Chat</h3>
-                <p style={{ color: '#6c757d', marginBottom: '16px' }}>Connect with others on similar wellness journeys</p>
-                <button className="btn btn-secondary" style={{ padding: '8px 16px' }}>
-                  Join Chat
-                </button>
-              </div>
-              
-              <div 
-                className="card" 
-                style={{ padding: '24px', textAlign: 'center', border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/blog')}
-              >
-                <span style={{ fontSize: '2rem', marginBottom: '16px', display: 'block' }}>📚</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000000', marginBottom: '8px' }}>Wellness Blog</h3>
-                <p style={{ color: '#6c757d', marginBottom: '16px' }}>Read articles and tips from mental health experts</p>
-                <button className="btn btn-secondary" style={{ padding: '8px 16px' }}>
-                  Read Blog
-                </button>
-              </div>
+          {/* Shopping Tab Content */}
+          {activeTab === 'shopping' && (
+            <div style={{ marginTop: '20px' }}>
+              <ShoppingTab />
             </div>
-          </section>
+          )}
 
-          {/* Daily Meditation Section */}
-          <section style={{ marginBottom: '40px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#000000' }}>Daily Meditation</h2>
-              <div style={{ backgroundColor: '#f8f9fa', color: '#000000', padding: '4px 12px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
-                10 min
-              </div>
+          {/* Blog Tab Content */}
+          {activeTab === 'blog' && (
+            <div style={{ marginTop: '20px' }}>
+              <p>Blog content would go here</p>
             </div>
-            
-            <div 
-              className="card" 
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-              onClick={() => navigate('/meditation')}
-            >
-              <div style={{ height: '200px', backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '4rem' }}>🧘</span>
-              </div>
-              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000000', marginBottom: '8px' }}>Morning Mindfulness</h3>
-                <p style={{ color: '#6c757d', marginBottom: '20px' }}>
-                  Start your day with clarity and intention through this guided mindfulness practice.
-                </p>
-                <button className="btn btn-primary" style={{ backgroundColor: '#f8f9fa', borderColor: '#e9ecef', color: '#000000', padding: '10px 16px', width: 'fit-content' }}>
-                  ▶ Play Meditation
-                </button>
-              </div>
-            </div>
-          </section>
+          )}
 
-          {/* Sleep Stories Section */}
-          <section style={{ marginBottom: '40px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#000000' }}>Sleep Stories</h2>
-              <button 
-                className="btn btn-secondary" 
-                style={{ padding: '6px 12px', fontSize: '0.9rem' }}
-                onClick={() => navigate('/sleep')}
-              >
-                See all →
-              </button>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-              <div 
-                className="card" 
-                style={{ border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/sleep')}
-              >
-                <div style={{ height: '160px', backgroundColor: '#f8f9fa', position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: '16px', left: '16px', color: '#000000', fontWeight: '600', fontSize: '0.8rem' }}>
-                    NORTHERN TRAIN
-                  </div>
-                  <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px' }}>
-                    <div style={{ backgroundColor: '#f8f9fa', color: '#000000', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                      ⭐
-                    </div>
-                    <div style={{ backgroundColor: '#f8f9fa', color: '#000000', padding: '2px 6px', borderRadius: '12px', fontSize: '0.8rem' }}>
-                      8.9 ★
-                    </div>
+          {/* Main Home Content (only shown when no tab is active) */}
+          {!activeTab && (
+            <>
+              {/* Enhanced Hero Section with Motion Design */}
+              <section style={{ padding: '60px 24px', backgroundColor: '#ffffff' }}>
+                <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', marginTop: '0px' }}>
+                    {/* Card 1 - Depression */}
+                    <motion.div 
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                      whileHover={{ y: -5 }}
+                      className="card" 
+                      style={{ 
+                        padding: '0', 
+                        borderRadius: '10px', 
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e0f2fe',
+                        textAlign: 'left',
+                        transition: 'all 0.3s ease',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+                      }}
+                      onClick={() => navigate('/assessments')}
+                    >
+                      <div style={{ 
+                        height: '160px', 
+                        backgroundColor: '#e0f2fe', 
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <motion.div
+                          whileHover={{ y: -5 }}
+                          transition={{ type: 'spring', stiffness: 300 }}
+                          style={{
+                            width: '100px',
+                            height: '100px',
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='40' r='20' fill='%237dd3fc'/%3E%3Cpath d='M30,70 Q50,90 70,70' stroke='%237dd3fc' stroke-width='3' fill='none'/%3E%3Ccircle cx='40' cy='35' r='3' fill='%230ea5e9'/%3E%3Ccircle cx='60' cy='35' r='3' fill='%230ea5e9'/%3E%3Cpath d='M40,50 Q50,55 60,50' stroke='%230ea5e9' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
+                            backgroundSize: 'contain',
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'center'
+                          }}
+                        />
+                      </div>
+                      <div style={{ padding: '20px' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#0c4a6e', marginBottom: '12px' }}>Depression</h3>
+                        <p style={{ color: '#0ea5e9', marginBottom: '20px', lineHeight: '1.5', fontSize: '0.95rem' }}>
+                          Understand and manage feelings of sadness, hopelessness, and lack of interest in activities.
+                        </p>
+                        <a 
+                          className="home-illus-cta-btn individual pressed"
+                          style={{
+                            textAlign: 'left',
+                            height: '80px',
+                            color: '#0c4a6e',
+                            border: '1px solid #e0f2fe',
+                            borderRadius: '6px',
+                            marginTop: '16px',
+                            padding: '12px 16px',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s ease',
+                            display: 'block',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            backgroundColor: '#f0f9ff',
+                            cursor: 'pointer'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/assessments');
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e0f2fe'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f0f9ff'}
+                        >
+                          <div className="home-illus-cta-btn-main-text" style={{ 
+                            fontWeight: '600', 
+                            fontSize: '0.95rem',
+                            color: 'inherit',
+                            marginBottom: '4px'
+                          }}>
+                            Learn about Depression
+                          </div>
+                          <div className="home-illus-cta-btn-help-text" style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            fontSize: '0.9rem', 
+                            color: '#0ea5e9' 
+                          }}>
+                            For myself
+                            <span className="arrow-outer" style={{ marginLeft: '8px' }}>
+                              <i className="arrow-inner fa fa-arrow-right" style={{ fontSize: '0.8rem' }}></i>
+                            </span>
+                          </div>
+                        </a>
+                      </div>
+                    </motion.div>
+                    
+                    {/* Card 2 - Anxiety */}
+                    <motion.div 
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.3 }}
+                      whileHover={{ y: -5 }}
+                      className="card" 
+                      style={{ 
+                        padding: '0', 
+                        borderRadius: '10px', 
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #fef3c7',
+                        textAlign: 'left',
+                        transition: 'all 0.3s ease',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+                      }}
+                      onClick={() => navigate('/assessments')}
+                    >
+                      <div style={{ 
+                        height: '160px', 
+                        backgroundColor: '#fef3c7', 
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <motion.div
+                          whileHover={{ y: -5 }}
+                          transition={{ type: 'spring', stiffness: 300 }}
+                          style={{
+                            width: '100px',
+                            height: '100px',
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='40' r='20' fill='%23fde68a'/%3E%3Cpath d='M30,70 Q50,85 70,70' stroke='%23fde68a' stroke-width='3' fill='none'/%3E%3Ccircle cx='40' cy='35' r='3' fill='%23f59e0b'/%3E%3Ccircle cx='60' cy='35' r='3' fill='%23f59e0b'/%3E%3Cpath d='M45,55 Q50,50 55,55' stroke='%23f59e0b' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
+                            backgroundSize: 'contain',
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'center'
+                          }}
+                        />
+                      </div>
+                      <div style={{ padding: '20px' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#92400e', marginBottom: '12px' }}>Anxiety</h3>
+                        <p style={{ color: '#f59e0b', marginBottom: '20px', lineHeight: '1.5', fontSize: '0.95rem' }}>
+                          Manage excessive worry, fear, and nervousness that interfere with daily activities.
+                        </p>
+                        <a 
+                          className="home-illus-cta-btn individual pressed"
+                          style={{
+                            textAlign: 'left',
+                            height: '80px',
+                            color: '#92400e',
+                            border: '1px solid #fef3c7',
+                            borderRadius: '6px',
+                            marginTop: '16px',
+                            padding: '12px 16px',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s ease',
+                            display: 'block',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            backgroundColor: '#fffbeb',
+                            cursor: 'pointer'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/assessments');
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef3c7'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fffbeb'}
+                        >
+                          <div className="home-illus-cta-btn-main-text" style={{ 
+                            fontWeight: '600', 
+                            fontSize: '0.95rem',
+                            color: 'inherit',
+                            marginBottom: '4px'
+                          }}>
+                            Learn about Anxiety
+                          </div>
+                          <div className="home-illus-cta-btn-help-text" style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            fontSize: '0.9rem', 
+                            color: '#f59e0b' 
+                          }}>
+                            For myself
+                            <span className="arrow-outer" style={{ marginLeft: '8px' }}>
+                              <i className="arrow-inner fa fa-arrow-right" style={{ fontSize: '0.8rem' }}></i>
+                            </span>
+                          </div>
+                        </a>
+                      </div>
+                    </motion.div>
+                    
+                    {/* Card 3 - Stress */}
+                    <motion.div 
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.4 }}
+                      whileHover={{ y: -5 }}
+                      className="card" 
+                      style={{ 
+                        padding: '0', 
+                        borderRadius: '10px', 
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #fce7f3',
+                        textAlign: 'left',
+                        transition: 'all 0.3s ease',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+                      }}
+                      onClick={() => navigate('/assessments')}
+                    >
+                      <div style={{ 
+                        height: '160px', 
+                        backgroundColor: '#fce7f3', 
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <motion.div
+                          whileHover={{ y: -5 }}
+                          transition={{ type: 'spring', stiffness: 300 }}
+                          style={{
+                            width: '100px',
+                            height: '100px',
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='40' r='20' fill='%23f9a8d4'/%3E%3Cpath d='M30,70 Q50,80 70,70' stroke='%23f9a8d4' stroke-width='3' fill='none'/%3E%3Ccircle cx='40' cy='35' r='3' fill='%23ec4899'/%3E%3Ccircle cx='60' cy='35' r='3' fill='%23ec4899'/%3E%3Cpath d='M40,55 Q50,60 60,55' stroke='%23ec4899' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
+                            backgroundSize: 'contain',
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'center'
+                          }}
+                        />
+                      </div>
+                      <div style={{ padding: '20px' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#831843', marginBottom: '12px' }}>Stress</h3>
+                        <p style={{ color: '#ec4899', marginBottom: '20px', lineHeight: '1.5', fontSize: '0.95rem' }}>
+                          Reduce tension, pressure, and emotional strain from life's challenges and demands.
+                        </p>
+                        <a 
+                          className="home-illus-cta-btn individual pressed"
+                          style={{
+                            textAlign: 'left',
+                            height: '80px',
+                            color: '#831843',
+                            border: '1px solid #fce7f3',
+                            borderRadius: '6px',
+                            marginTop: '16px',
+                            padding: '12px 16px',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s ease',
+                            display: 'block',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            backgroundColor: '#fdf2f8',
+                            cursor: 'pointer'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/assessments');
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fce7f3'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fdf2f8'}
+                        >
+                          <div className="home-illus-cta-btn-main-text" style={{ 
+                            fontWeight: '600', 
+                            fontSize: '0.95rem',
+                            color: 'inherit',
+                            marginBottom: '4px'
+                          }}>
+                            Learn about Stress
+                          </div>
+                          <div className="home-illus-cta-btn-help-text" style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            fontSize: '0.9rem', 
+                            color: '#ec4899' 
+                          }}>
+                            For myself
+                            <span className="arrow-outer" style={{ marginLeft: '8px' }}>
+                              <i className="arrow-inner fa fa-arrow-right" style={{ fontSize: '0.8rem' }}></i>
+                            </span>
+                          </div>
+                        </a>
+                      </div>
+                    </motion.div>
                   </div>
                 </div>
-                <div style={{ padding: '16px' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#000000', marginBottom: '4px' }}>Northern Train Journey</h3>
-                  <p style={{ color: '#6c757d', fontSize: '0.95rem' }}>
-                    Relax as you journey through the peaceful landscapes of the north.
-                  </p>
-                </div>
-              </div>
-              
-              <div 
-                className="card" 
-                style={{ border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/sleep')}
-              >
-                <div style={{ height: '160px', backgroundColor: '#f8f9fa', position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: '16px', left: '16px', color: '#000000', fontWeight: '600', fontSize: '0.8rem' }}>
-                    IRISH COUNTRYSIDE
-                  </div>
-                  <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px' }}>
-                    <div style={{ backgroundColor: '#f8f9fa', color: '#000000', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                      ⭐
-                    </div>
-                    <div style={{ backgroundColor: '#f8f9fa', color: '#000000', padding: '2px 6px', borderRadius: '12px', fontSize: '0.8rem' }}>
-                      9.2 ★
-                    </div>
-                  </div>
-                </div>
-                <div style={{ padding: '16px' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#000000', marginBottom: '4px' }}>Irish Countryside</h3>
-                  <p style={{ color: '#6c757d', fontSize: '0.95rem' }}>
-                    Drift off to sleep while exploring the serene beauty of Ireland.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Mind Check Section */}
-          <section className="mind-check-section">
-            <QuestionnaireBar />
-            <MoodCompanionGame />
-          </section>
-
-          {/* CTA Section */}
-          <section style={{ textAlign: 'center', padding: '60px 24px', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '600', color: '#000000', marginBottom: '16px' }}>
-              Ready to Take Control of Your Mental Wellness?
-            </h2>
-            <p style={{ fontSize: '1.1rem', color: '#6c757d', maxWidth: '600px', margin: '0 auto 32px' }}>
-              Start your journey of self-discovery and personal growth with our comprehensive mental health assessment and personalized wellness tools.
-            </p>
-            <div>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => navigate('/assessments')}
-                style={{ backgroundColor: '#000000', color: 'white', padding: '12px 24px', fontSize: '1rem' }}
-              >
-                Start My Wellness Journey
-              </button>
-            </div>
-            <div style={{ marginTop: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#6c757d', fontSize: '0.9rem' }}>
-              <span>🔒</span>
-              <span>Your data is private and secure - take control of your mental wellness journey</span>
-            </div>
-          </section>
-
-          {/* Explore by Content */}
-          <section style={{ marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#000000', marginBottom: '24px', textAlign: 'center' }}>
-              Explore by Content
-            </h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
-              <div 
-                className="card" 
-                style={{ padding: '32px 24px', textAlign: 'center', border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/meditation')}
-              >
-                <span style={{ fontSize: '2.5rem', marginBottom: '16px', display: 'block' }}>🧘</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000000' }}>Meditation</h3>
-              </div>
-
-              <div 
-                className="card" 
-                style={{ padding: '32px 24px', textAlign: 'center', border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/sleep')}
-              >
-                <span style={{ fontSize: '2.5rem', marginBottom: '16px', display: 'block' }}>🌙</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000000' }}>Sleep</h3>
-              </div>
-
-              <div 
-                className="card" 
-                style={{ padding: '32px 24px', textAlign: 'center', border: '1px solid #e9ecef', borderRadius: '8px', cursor: 'pointer' }}
-                onClick={() => navigate('/music')}
-              >
-                <span style={{ fontSize: '2.5rem', marginBottom: '16px', display: 'block' }}>🎵</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000000' }}>Music</h3>
-              </div>
-            </div>
-          </section>
-
+              </section>
+            </>
+          )}
         </main>
         <SupportChatbot />
       </div>
     </div>
   );
 }
-

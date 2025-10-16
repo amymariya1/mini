@@ -57,7 +57,7 @@ export default function ProfileMenu({ user }) {
               <div className="menu-email">{user?.email}</div>
             </div>
             <Link to="/home" className="menu-item" onClick={() => setOpen(false)}>🏠 Home</Link>
-            <Link to="#" className="menu-item" onClick={() => setOpen(false)}>⚙️ Settings</Link>
+            <button className="menu-item" onClick={() => { setOpen(false); navigate("/auto-forgot-password"); }}>⚙️ Reset Password</button>
             <button className="menu-item danger" onClick={logout}>↩️ Log out</button>
           </motion.div>
         )}

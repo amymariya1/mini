@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Product from '../models/Product.js';
 import Post from '../models/Post.js';
 import Message from '../models/Message.js';
+import User from '../models/User.js';
 
 const router = Router();
 
@@ -74,6 +75,22 @@ router.post('/messages', async (req, res) => {
     return res.status(201).json({ message: created });
   } catch (err) {
     console.error('Public create message error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Public Therapists (approved and active only)
+router.get('/therapists', async (_req, res) => {
+  try {
+    const therapists = await User.find({ 
+      userType: "therapist", 
+      isApproved: true,
+      isActive: true
+    }).select("name email age license");
+    
+    return res.json({ therapists });
+  } catch (err) {
+    console.error('Public list therapists error', err);
     return res.status(500).json({ message: 'Server error' });
   }
 });

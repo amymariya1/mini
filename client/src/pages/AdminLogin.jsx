@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import axios from "axios";
+import { useNavigate, Link } from "react-router-dom";
+import { adminLogin } from "../services/api";
 
 const AdminLogin = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,22 +15,18 @@ const AdminLogin = () => {
     setError("");
 
     try {
-      // 🔗 Send login request to your backend
-      const res = await axios.post("http://localhost:5000/api/admin/login", {
-        email,
-        password,
-      });
+      // 🔗 Send login request using the API service
+      const res = await adminLogin({ email, password });
 
       // 🧠 Save admin info and token in localStorage
-      localStorage.setItem("mm_admin_token", res.data.token);
-      localStorage.setItem("mm_admin", JSON.stringify(res.data.admin));
+      localStorage.setItem("mm_admin_token", res.token);
+      localStorage.setItem("mm_admin", JSON.stringify(res.admin));
 
-      alert("Admin login successful!");
-      window.location.href = "/admin/dashboard"; // redirect to admin dashboard
+      navigate("/admin/dashboard"); // redirect to admin dashboard
     } catch (err) {
       console.error(err);
       setError(
-        err.response?.data?.message || "Login failed. Please check credentials."
+        err.message || "Login failed. Please check credentials."
       );
     } finally {
       setLoading(false);
@@ -105,6 +103,12 @@ const AdminLogin = () => {
           {loading ? "Logging in..." : "Login"}
         </button>
       </form>
+      
+      <div style={{ marginTop: "20px", textAlign: "center" }}>
+        <Link to="/login" style={{ color: "#007bff", textDecoration: "none" }}>
+          Back to User Login
+        </Link>
+      </div>
     </div>
   );
 };
