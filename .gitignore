@@ -68,6 +68,7 @@ serviceAccount*.json
 
 # Environment files that shouldn't be tracked
 .env.production
+client/.env.production
 
 # Test and debug scripts
 approve-therapist.js
