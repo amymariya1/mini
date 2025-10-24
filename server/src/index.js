@@ -15,19 +15,46 @@ const __dirname = path.dirname(__filename);
 // Initialize Express app
 const app = express();
 
-// Enable CORS for all routes with specific configuration for Render frontend
+// Enable CORS for all routes with comprehensive configuration
 const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5002',
-    'https://mini-iota-one.vercel.app',
-    /\.onrender\.com$/, // This will match any Render subdomain
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5002',
+      'https://mini-iota-one.vercel.app',
+      // Render frontend URLs - using regex pattern matching
+    ];
+    
+    // Check if the origin matches any of our allowed origins or patterns
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      }
+      // For regex patterns
+      if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return false;
+    }) || /.*\.onrender\.com$/.test(origin);
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
+
+// Handle preflight requests for all routes
+app.options('*', cors(corsOptions));
 
 // Built-in middleware for parsing JSON
 app.use(express.json({ limit: "10mb" }));
