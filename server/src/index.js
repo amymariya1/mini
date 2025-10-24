@@ -80,6 +80,16 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// Root endpoint for Vercel deployment
+app.get("/", (_req, res) => {
+  res.json({ 
+    message: "MindMirror Backend API", 
+    status: "running",
+    timestamp: new Date().toISOString(),
+    documentation: "https://github.com/amymariya1/mini"
+  });
+});
+
 // MongoDB Connection
 const mongoUri = process.env.MONGO_URI;
 let isConnected = false;
