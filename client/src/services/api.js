@@ -5,9 +5,21 @@ async function request(path, options = {}) {
   try {
     console.log(`API: Making request to ${path}`, options);
     
-    // Only set Content-Type for requests that actually send a body
-    const hasBody = options.body !== undefined && options.body !== null;
-    const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
+    // Get headers from options
+    const customHeaders = options.headers || {};
+    
+    // Set Content-Type for requests that send a body, unless already set
+    const contentTypeHeader = (options.body !== undefined && options.body !== null) 
+      ? { 'Content-Type': 'application/json' } 
+      : {};
+    
+    // Merge all headers properly
+    const headers = {
+      ...contentTypeHeader,
+      ...customHeaders
+    };
+
+    console.log(`API: Final headers for request to ${path}:`, headers);
 
     const res = await fetch(`${baseURL}${path}`, {
       ...options,
@@ -225,7 +237,10 @@ export async function adminUpdateOrderStatus(orderId, status, note) {
 // Admin API
 function adminHeaders() {
   const token = localStorage.getItem('mm_admin_token');
-  return token ? { 'x-admin-token': token } : {};
+  console.log('API: Retrieved admin token from localStorage:', token);
+  const headers = token ? { 'x-admin-token': token } : {};
+  console.log('API: Admin headers:', headers);
+  return headers;
 }
 
 export async function adminLogin(payload) {
