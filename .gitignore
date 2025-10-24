@@ -59,3 +59,32 @@ desktop.ini
 *.seed
 *.tsbuildinfo
 serviceAccount*.json
+
+# Documentation files (except README.md and DEPLOYMENT.md)
+/EMAIL_TROUBLESHOOTING.md
+/IMPLEMENTATION_SUMMARY.md
+/RECURRING_SCHEDULE_SYSTEM.md
+/SHOPPING_FEATURES.md
+
+# Environment files that shouldn't be tracked
+.env.production
+
+# Test and debug scripts
+approve-therapist.js
+check-admins.js
+check-reset-tokens.js
+check-users.js
+create-admin.js
+debug-credentials.js
+debug-login.js
+test-*.js
+verify-*.js
+
+# Zencoder directory
+.zencoder/
+
+# Other unnecessary files
+*.bak
+*.backup
+.DS_Store
+Thumbs.db
