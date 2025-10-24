@@ -36,6 +36,40 @@ async function requireUser(req, res, next) {
   }
 }
 
+// GET /api/posts - list all published posts
+router.get('/posts', async (req, res) => {
+  try {
+    const { page = 1, limit = 10, tag } = req.query;
+    const skip = (Math.max(1, parseInt(page)) - 1) * Math.min(100, Math.max(1, parseInt(limit)));
+    
+    const query = { published: true };
+    if (tag) {
+      query.tags = { $in: [String(tag).toLowerCase()] };
+    }
+    
+    const [posts, total] = await Promise.all([
+      Post.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Math.min(100, Math.max(1, parseInt(limit)))),
+      Post.countDocuments(query)
+    ]);
+    
+    return res.json({
+      posts,
+      pagination: {
+        total,
+        page: Math.max(1, parseInt(page)),
+        totalPages: Math.ceil(total / Math.min(100, Math.max(1, parseInt(limit)))),
+        limit: Math.min(100, Math.max(1, parseInt(limit)))
+      }
+    });
+  } catch (err) {
+    console.error('List posts error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/posts - submit a new blog post (immediately published)
 router.post('/posts', requireUser, async (req, res) => {
   try {
@@ -52,6 +86,11 @@ router.post('/posts', requireUser, async (req, res) => {
       author: req.user?._id || null,
       status: 'approved',
       published: true,
+      // Include author information directly in the post
+      authorInfo: {
+        name: req.user?.name || 'Anonymous',
+        profilePicture: req.user?.profilePicture || ''
+      }
     });
 
     return res.status(201).json({ post: created });

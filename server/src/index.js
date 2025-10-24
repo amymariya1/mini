@@ -1,27 +1,28 @@
-import dotenv from "dotenv";
 import express from "express";
-import cors from "cors";
-import morgan from "morgan";
 import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
+import cors from "cors";
+import dotenv from "dotenv";
 
-// Fix for __dirname and __filename in ES modules
+// Load environment variables
+dotenv.config();
+
+// ES module workaround for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env file with explicit path
-const envPath = path.resolve(__dirname, '../.env');
-console.log('Loading .env from:', envPath);
-dotenv.config({ path: envPath });
+// Initialize Express app
+const app = express();
 
-// Debug: Log environment variables
-console.log('Environment variables:');
-console.log('PORT:', process.env.PORT);
-console.log('MONGO_URI:', process.env.MONGO_URI ? 'Found' : 'Not found');
-console.log('MONGO_URI value:', process.env.MONGO_URI);
+// Enable CORS for all routes
+app.use(cors());
 
-// Import routes
+// Built-in middleware for parsing JSON
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Routes imports
 import authRoutes from "./routes/auth.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import publicRoutes from "./routes/public.routes.js";
@@ -36,15 +37,14 @@ import bookingRoutes from "./routes/booking.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import ordersRoutes from "./routes/orders.routes.js";
 import ordersCreateRoutes from "./routes/orders.create.routes.js";
-
-const app = express();
-
-// --------------------
-// 🧩 Middleware
-// --------------------
-app.use(cors());
-app.use(express.json());
-app.use(morgan("dev"));
+import appointmentRoutes from "./routes/appointment.routes.js";
+import leaveRoutes from "./routes/leave.routes.js";
+import tentativeAvailabilityRoutes from "./routes/tentativeAvailability.routes.js";
+import therapistRoutes from "./routes/therapist.routes.js";
+import meditationVideoRoutes from "./routes/meditationVideo.routes.js";
+import likeRoutes from "./routes/like.routes.js";
+import patientRoutes from "./routes/patient.routes.js";
+import therapistScheduleRoutes from "./routes/therapistSchedule.routes.js";
 
 // Serve uploaded images (so /uploads/image.jpg works)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -66,40 +66,47 @@ app.use("/api", bookingRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api", ordersRoutes);
 app.use("/api", ordersCreateRoutes);
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/leaves", leaveRoutes);
+app.use("/api/availability", tentativeAvailabilityRoutes);
+app.use("/api/therapists", therapistRoutes);
+app.use("/api/meditation-videos", meditationVideoRoutes);
+app.use("/api", likeRoutes);
+app.use("/api/patients", patientRoutes);
+app.use("/api/therapist-schedule", therapistScheduleRoutes);
 
 // Health check endpoint
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// --------------------
-// 🧠 MongoDB Connection
-// --------------------
+// MongoDB Connection
 const mongoUri = process.env.MONGO_URI;
-const port = process.env.PORT || 5002;
+let isConnected = false;
 
-async function startServer() {
+async function connectToDatabase() {
+  if (isConnected) {
+    return;
+  }
+  
   try {
     if (!mongoUri) {
-      console.error("❌ Error: MONGO_URI not found in .env file");
-      process.exit(1);
+      throw new Error("❌ Error: MONGO_URI not found in environment variables");
     }
 
-    // Connect to MongoDB
     await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+    isConnected = true;
     console.log("✅ MongoDB connected successfully");
-
-    // Start Express server
-    app.listen(port, () => {
-      console.log(`🚀 Server running at http://localhost:${port}`);
-    });
   } catch (error) {
-    console.error("❌ Failed to start server:", error.message);
-    process.exit(1);
+    console.error("❌ Failed to connect to MongoDB:", error.message);
+    throw error;
   }
 }
 
-startServer();
+// Export for Vercel
+export { app, connectToDatabase };
+
+export default app;

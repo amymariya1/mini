@@ -1,8 +1,5 @@
 import User from "../models/User.js";
-
-// In a real implementation, you would store messages in a database
-// For now, we'll use an in-memory array to simulate message storage
-let chatMessages = [];
+import ChatMessage from "../models/ChatMessage.js";
 
 // Send a message
 export async function sendMessage(req, res) {
@@ -18,27 +15,39 @@ export async function sendMessage(req, res) {
       });
     }
 
-    // Create message object
-    const newMessage = {
-      id: chatMessages.length + 1,
-      senderId: sender._id.toString(),
-      recipientId,
-      message,
-      timestamp: new Date(),
-      read: false
-    };
+    // Verify recipient exists
+    const recipient = await User.findById(recipientId);
+    if (!recipient) {
+      return res.status(404).json({
+        success: false,
+        message: "Recipient not found"
+      });
+    }
 
-    // Add to messages array
-    chatMessages.push(newMessage);
+    // Create and save message to database
+    const newMessage = new ChatMessage({
+      sender: sender._id,
+      recipient: recipientId,
+      message: message.trim()
+    });
 
-    // In a real implementation, you would:
-    // 1. Save the message to a database
-    // 2. Notify the recipient (via WebSocket, push notification, etc.)
+    await newMessage.save();
+
+    // Populate sender information for response
+    await newMessage.populate('sender', 'name email');
 
     res.status(201).json({ 
       success: true, 
       message: "Message sent successfully",
-      data: newMessage
+      data: {
+        id: newMessage._id,
+        senderId: newMessage.sender._id.toString(),
+        recipientId: newMessage.recipient.toString(),
+        message: newMessage.message,
+        timestamp: newMessage.createdAt,
+        read: newMessage.read,
+        senderName: newMessage.sender.name
+      }
     });
   } catch (error) {
     console.error("Error sending message:", error);
@@ -71,18 +80,29 @@ export async function getChatHistory(req, res) {
       });
     }
 
-    // Filter messages between these two users
-    const messages = chatMessages.filter(msg => 
-      (msg.senderId === userId && msg.recipientId === therapistId) ||
-      (msg.senderId === therapistId && msg.recipientId === userId)
-    );
+    // Create room ID for consistent querying
+    const ids = [userId, therapistId].sort();
+    const roomId = `${ids[0]}_${ids[1]}`;
 
-    // Sort by timestamp
-    messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    // Get messages from database
+    const messages = await ChatMessage.find({ roomId })
+      .populate('sender', 'name email')
+      .sort({ createdAt: 1 }); // Sort by creation time ascending
+
+    // Format messages for response
+    const formattedMessages = messages.map(msg => ({
+      id: msg._id,
+      senderId: msg.sender._id.toString(),
+      recipientId: msg.recipient.toString(),
+      message: msg.message,
+      timestamp: msg.createdAt,
+      read: msg.read,
+      senderName: msg.sender.name
+    }));
 
     res.status(200).json({ 
       success: true, 
-      data: messages
+      data: formattedMessages
     });
   } catch (error) {
     console.error("Error fetching chat history:", error);
@@ -98,9 +118,17 @@ export async function markAsRead(req, res) {
   try {
     const { messageId } = req.params;
     const currentUser = req.user; // From auth middleware
-    
-    // Find the message
-    const message = chatMessages.find(msg => msg.id === parseInt(messageId));
+
+    // Validate input
+    if (!messageId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "messageId is required" 
+      });
+    }
+
+    // Find the message in the database
+    const message = await ChatMessage.findById(messageId);
     
     if (!message) {
       return res.status(404).json({ 
@@ -108,27 +136,96 @@ export async function markAsRead(req, res) {
         message: "Message not found" 
       });
     }
-    
-    // Security check: ensure current user is the recipient
-    if (message.recipientId !== currentUser._id.toString()) {
+
+    // Security check: only the recipient can mark as read
+    if (message.recipient.toString() !== currentUser._id.toString()) {
       return res.status(403).json({ 
         success: false, 
-        message: "Access denied: You can only mark your own messages as read" 
+        message: "Access denied: Only the recipient can mark messages as read" 
       });
     }
-    
+
     // Mark as read
     message.read = true;
-    
+    message.readAt = new Date();
+    await message.save();
+
     res.status(200).json({ 
       success: true, 
-      message: "Message marked as read"
+      message: "Message marked as read",
+      data: {
+        id: message._id,
+        read: message.read,
+        readAt: message.readAt
+      }
     });
   } catch (error) {
     console.error("Error marking message as read:", error);
     res.status(500).json({ 
       success: false, 
       message: "Failed to mark message as read" 
+    });
+  }
+}
+
+// Get all conversations for a user (therapist or patient)
+export async function getConversations(req, res) {
+  try {
+    const currentUser = req.user;
+    const userType = req.query.type; // 'therapist' or 'patient'
+
+    // Get all conversations where current user is either sender or recipient
+    const conversations = await ChatMessage.find({
+      $or: [
+        { sender: currentUser._id },
+        { recipient: currentUser._id }
+      ]
+    })
+    .populate('sender', 'name email')
+    .populate('recipient', 'name email')
+    .sort({ createdAt: -1 });
+
+    // Group messages by conversation partner
+    const conversationMap = new Map();
+
+    conversations.forEach(msg => {
+      const partner = msg.sender._id.toString() === currentUser._id.toString() 
+        ? msg.recipient 
+        : msg.sender;
+      
+      const partnerId = partner._id.toString();
+      
+      if (!conversationMap.has(partnerId)) {
+        conversationMap.set(partnerId, {
+          partnerId,
+          partnerName: partner.name,
+          partnerEmail: partner.email,
+          lastMessage: msg.message,
+          lastMessageTime: msg.createdAt,
+          unreadCount: 0,
+          isTherapist: partner.role === 'therapist'
+        });
+      }
+
+      // Count unread messages (only count messages sent TO current user)
+      if (msg.recipient.toString() === currentUser._id.toString() && !msg.read) {
+        conversationMap.get(partnerId).unreadCount++;
+      }
+    });
+
+    // Convert to array and sort by last message time
+    const conversationList = Array.from(conversationMap.values())
+      .sort((a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime));
+
+    res.status(200).json({
+      success: true,
+      data: conversationList
+    });
+  } catch (error) {
+    console.error("Error fetching conversations:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch conversations"
     });
   }
 }

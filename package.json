@@ -1,7 +1,21 @@
 {
+  "name": "mindmirror-root",
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1",
+    "morgan": "^1.10.1",
+    "nodemailer": "^6.9.14",
+    "razorpay": "^2.9.6",
     "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "http-proxy-middleware": "^3.0.5"
+  },
+  "scripts": {
+    "vercel-build": "echo 'Vercel build completed'"
   }
 }

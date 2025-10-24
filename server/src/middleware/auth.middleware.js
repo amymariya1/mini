@@ -1,6 +1,27 @@
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 
+// Restrict middleware - ensures user has specific role
+export function restrictTo(...roles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Please log in first'
+      });
+    }
+
+    if (!roles.includes(req.user.userType)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You do not have permission to perform this action'
+      });
+    }
+
+    next();
+  };
+}
+
 // Protect middleware - ensures user is authenticated
 export async function protect(req, res, next) {
   try {

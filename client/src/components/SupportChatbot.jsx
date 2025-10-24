@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { FaRobot } from "react-icons/fa";
 import { askAssistantLLM } from "../services/api";
 import "./support-chatbot.css";
 
@@ -159,9 +160,16 @@ function generateAnswer(userText, assessment) {
   };
 }
 
-export default function SupportChatbot() {
+const SupportChatbot = forwardRef((props, ref) => {
   const assessment = useLatestAssessment();
   const [open, setOpen] = useState(false);
+
+  // Expose open method to parent components
+  useImperativeHandle(ref, () => ({
+    openChat: () => setOpen(true),
+    closeChat: () => setOpen(false),
+    toggleChat: () => setOpen(v => !v)
+  }));
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([
     {
@@ -300,7 +308,7 @@ export default function SupportChatbot() {
         className="support-chat-launcher"
         aria-label={open ? "Close support chat" : "Open support chat"}
       >
-        {open ? "Close Chat" : "Ask about stress, anxiety, depression"}
+        <FaRobot size={24} />
       </motion.button>
 
       {/* Chat Panel */}
@@ -394,4 +402,6 @@ export default function SupportChatbot() {
       </AnimatePresence>
     </>
   );
-}
+});
+
+export default SupportChatbot;

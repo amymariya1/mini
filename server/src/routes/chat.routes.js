@@ -1,5 +1,5 @@
 import express from "express";
-import { sendMessage, getChatHistory, markAsRead } from "../controllers/chat.controller.js";
+import { sendMessage, getChatHistory, markAsRead, getConversations } from "../controllers/chat.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -15,5 +15,8 @@ router.get("/history/:userId/:therapistId", getChatHistory);
 
 // Mark a message as read
 router.put("/read/:messageId", markAsRead);
+
+// Get all conversations for current user
+router.get("/conversations", getConversations);
 
 export default router;

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import Admin from '../models/Admin.js';
 import User from '../models/User.js';
+import { sendTherapistApprovalEmail, sendTherapistRejectionEmail } from '../utils/mailer.js';
 import Product from '../models/Product.js';
 import Post from '../models/Post.js';
 import Message from '../models/Message.js';
@@ -225,44 +226,82 @@ export async function toggleUserStatus(req, res) {
   }
 }
 
-export async function listPendingTherapists(_req, res) {
+export async function deleteUser(req, res) {
   try {
-    const pendingTherapists = await User.find({ 
-      userType: "therapist", 
-      isApproved: false 
-    });
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    // Prevent deletion of admin users
+    if (user.userType === 'admin') {
+      return res.status(403).json({ message: 'Cannot delete admin users' });
+    }
+    
+    await User.findByIdAndDelete(id);
     
     return res.json({ 
-      success: true, 
-      therapists: pendingTherapists 
+      message: 'User deleted successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email
+      }
     });
   } catch (err) {
-    console.error('List pending therapists error', err);
+    console.error('Delete user error', err);
     return res.status(500).json({ message: 'Server error' });
   }
 }
 
+// List pending therapists (not approved yet)
+export async function listPendingTherapists(_req, res) {
+  try {
+    const therapists = await User.find({ 
+      userType: "therapist", 
+      isApproved: false 
+    }).select("name email age license createdAt");
+    
+    return res.json({ success: true, therapists });
+  } catch (err) {
+    console.error('List pending therapists error', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+}
+
+// Approve a therapist
 export async function approveTherapist(req, res) {
   try {
     const { id } = req.params;
+    
+    // Find the therapist
     const therapist = await User.findById(id);
-    
     if (!therapist) {
-      return res.status(404).json({ message: "Therapist not found" });
+      return res.status(404).json({ message: 'Therapist not found' });
     }
     
-    if (therapist.userType !== "therapist") {
-      return res.status(400).json({ message: "User is not a therapist" });
+    if (therapist.userType !== 'therapist') {
+      return res.status(400).json({ message: 'User is not a therapist' });
     }
     
-    // Approve therapist
+    // Update therapist status
     therapist.isApproved = true;
     therapist.isActive = true;
     await therapist.save();
     
+    // Send approval email
+    try {
+      await sendTherapistApprovalEmail(therapist.email, {
+        name: therapist.name
+      });
+      console.log(`Therapist approval email sent successfully to ${therapist.email}`);
+    } catch (emailError) {
+      console.error('Error sending therapist approval email:', emailError);
+      // Don't fail the approval if email fails
+    }
+    
     return res.json({ 
-      success: true, 
-      message: "Therapist approved successfully",
+      success: true,
+      message: 'Therapist approved successfully',
       therapist: {
         id: therapist._id,
         name: therapist.name,
@@ -273,7 +312,60 @@ export async function approveTherapist(req, res) {
     });
   } catch (err) {
     console.error('Approve therapist error', err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+}
+
+// Reject a therapist
+export async function rejectTherapist(req, res) {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    // Find the therapist
+    const therapist = await User.findById(id);
+    if (!therapist) {
+      return res.status(404).json({ message: 'Therapist not found' });
+    }
+    
+    if (therapist.userType !== 'therapist') {
+      return res.status(400).json({ message: 'User is not a therapist' });
+    }
+    
+    // Send rejection email before deleting/deactivating
+    try {
+      await sendTherapistRejectionEmail(therapist.email, {
+        name: therapist.name,
+        reason: reason || 'Your application did not meet our current requirements.'
+      });
+      console.log(`Therapist rejection email sent successfully to ${therapist.email}`);
+    } catch (emailError) {
+      console.error('Error sending therapist rejection email:', emailError);
+      // Continue with rejection even if email fails
+    }
+    
+    // Option 1: Delete the therapist account
+    // await User.findByIdAndDelete(id);
+    
+    // Option 2: Keep the account but mark as rejected (recommended)
+    therapist.isApproved = false;
+    therapist.isActive = false;
+    await therapist.save();
+    
+    return res.json({ 
+      success: true,
+      message: 'Therapist rejected successfully',
+      therapist: {
+        id: therapist._id,
+        name: therapist.name,
+        email: therapist.email,
+        isApproved: therapist.isApproved,
+        isActive: therapist.isActive
+      }
+    });
+  } catch (err) {
+    console.error('Reject therapist error', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 }
 

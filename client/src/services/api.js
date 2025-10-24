@@ -119,7 +119,13 @@ export async function register(payload) {
 export async function registerTherapist(payload) {
   return request('/auth/register-therapist', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      specialization: payload.specialization || 'Mental Health Therapist',
+      bio: payload.bio || 'Experienced therapist specializing in mental health and wellness. Committed to providing compassionate care and evidence-based treatments.',
+      rating: payload.rating || 0,
+      experience: payload.experience || 0
+    }),
   });
 }
 
@@ -192,18 +198,28 @@ export async function requestPasswordResetForCurrentUser() {
 }
 
 export async function resetPassword(payload) {
-  console.log('API: Resetting password with token');
-  try {
-    const result = await request('/auth/reset-password', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    console.log('API: Password reset successful');
-    return result;
-  } catch (error) {
-    console.error('API: Password reset failed:', error.message);
-    throw error;
-  }
+  return request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// Order management functions
+export async function adminGetAllOrders() {
+  return request('/orders', {
+    headers: { 'x-admin-auth': 'true' }
+  });
+}
+
+export async function adminUpdateOrderStatus(orderId, status, note) {
+  return request(`/orders/${orderId}/status`, {
+    method: 'PATCH',
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-admin-auth': 'true'
+    },
+    body: JSON.stringify({ status, note })
+  });
 }
 
 // Admin API
@@ -245,6 +261,12 @@ export async function adminUpdateUser(id, payload) {
     method: 'PUT',
     headers: adminHeaders(),
     body: JSON.stringify(payload),
+  });
+}
+export async function adminDeleteUser(id) {
+  return request(`/admin/users/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
   });
 }
 export async function adminToggleUserStatus(id) {
@@ -381,8 +403,14 @@ export async function getProduct(id) {
 }
 
 // Public Posts
-export async function listPosts() {
-  return request('/posts');
+export async function listPosts({ page = 1, limit = 10, tag } = {}) {
+  const params = new URLSearchParams();
+  if (page) params.set('page', page);
+  if (limit) params.set('limit', limit);
+  if (tag) params.set('tag', tag);
+  
+  const queryString = params.toString();
+  return request(`/posts${queryString ? `?${queryString}` : ''}`);
 }
 export async function getPost(id) {
   return request(`/posts/${id}`);
@@ -426,7 +454,17 @@ export async function createMessage(payload) {
 
 // Public Therapists
 export async function listTherapists() {
-  return request('/therapists');
+  const res = await request('/therapists');
+  // Server returns { therapists: [...] }
+  if (res && Array.isArray(res.therapists)) {
+    return { success: true, data: res.therapists, therapists: res.therapists };
+  }
+  // Fallback if server ever returns an array directly
+  if (Array.isArray(res)) {
+    return { success: true, data: res, therapists: res };
+  }
+  // Pass-through unexpected shape
+  return res;
 }
 
 // Cart functions
@@ -493,6 +531,12 @@ export async function markMessageAsRead(messageId) {
   });
 }
 
+export async function getConversations() {
+  return request('/chat/conversations', {
+    headers: userHeaders(),
+  });
+}
+
 // Optional: Call external LLM for richer answers
 // Configure via REACT_APP_LLM_API_URL (full URL, e.g., https://your-llm-host/assistant/ask)
 export async function askAssistantLLM(payload) {
@@ -532,5 +576,449 @@ export async function askAssistantLLM(payload) {
     } catch (err) {
       throw err;
     }
+  }
+}
+
+// Set therapist availability for a specific date
+export async function setTherapistAvailability(therapistId, date, availability) {
+  try {
+    console.log("API: setTherapistAvailability called with:", { therapistId, date, availability });
+    
+    // Validate input
+    if (!therapistId) {
+      throw new Error("Therapist ID is required");
+    }
+    if (!date) {
+      throw new Error("Date is required");
+    }
+    if (!availability) {
+      throw new Error("Availability is required");
+    }
+    
+    const token = localStorage.getItem("mm_token");
+    console.log("API: Using token:", token ? "Present" : "Missing");
+    
+    const payload = { therapistId, date, availability };
+    console.log("API: Sending payload:", payload);
+    
+    return await request("/appointments/availability", {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Error setting therapist availability:", error);
+    throw error;
+  }
+}
+
+// Get therapist availability for a specific date
+export async function getTherapistAvailability(therapistId, date) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const params = new URLSearchParams({ therapistId, date }).toString();
+    return await request(`/appointments/availability?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting therapist availability:", error);
+    throw error;
+  }
+}
+
+// Get therapist availability for a date range
+export async function getTherapistAvailabilityRange(therapistId, startDate, endDate) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const params = new URLSearchParams({ therapistId, startDate, endDate }).toString();
+    return await request(`/appointments/availability-range?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting therapist availability range:", error);
+    throw error;
+  }
+}
+
+// Leave management functions
+export async function createLeave(therapistId, startDate, endDate, reason) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request("/leaves", {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify({ therapistId, startDate, endDate, reason })
+    });
+  } catch (error) {
+    console.error("Error creating leave:", error);
+    throw error;
+  }
+}
+
+export async function getLeaves(therapistId) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const params = new URLSearchParams({ therapistId }).toString();
+    return await request(`/leaves?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting leaves:", error);
+    throw error;
+  }
+}
+
+// Therapist Schedule functions (recurring availability)
+export async function getTherapistSchedule(therapistId) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const params = new URLSearchParams({ therapistId }).toString();
+    return await request(`/therapist-schedule/schedule?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting therapist schedule:", error);
+    throw error;
+  }
+}
+
+export async function updateTherapistSchedule(therapistId, weeklySchedule, defaultAvailability) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request("/therapist-schedule/schedule", {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify({ therapistId, weeklySchedule, defaultAvailability })
+    });
+  } catch (error) {
+    console.error("Error updating therapist schedule:", error);
+    throw error;
+  }
+}
+
+export async function getLeaveById(id) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/leaves/${id}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting leave:", error);
+    throw error;
+  }
+}
+
+export async function updateLeave(id, updates) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/leaves/${id}`, {
+      method: "PUT",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(updates)
+    });
+  } catch (error) {
+    console.error("Error updating leave:", error);
+    throw error;
+  }
+}
+
+export async function deleteLeave(id) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/leaves/${id}`, {
+      method: "DELETE",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error deleting leave:", error);
+    throw error;
+  }
+}
+
+// Appointment booking functions
+export async function bookAppointment(appointmentData) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request("/appointments/book", {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(appointmentData)
+    });
+  } catch (error) {
+    console.error("Error booking appointment:", error);
+    throw error;
+  }
+}
+
+export async function getUserAppointments() {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const userRaw = localStorage.getItem('mm_user');
+    let userId = '';
+    if (userRaw) {
+      try {
+        const u = JSON.parse(userRaw);
+        userId = u?.id || '';
+      } catch (_) {}
+    }
+    const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return await request(`/appointments/user-appointments${qs}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting user appointments:", error);
+    throw error;
+  }
+}
+
+export async function getTherapistAppointments(therapistId) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/appointments/therapist-appointments?therapistId=${encodeURIComponent(therapistId)}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting therapist appointments:", error);
+    throw error;
+  }
+}
+
+export async function cancelAppointment(id) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/appointments/cancel/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error cancelling appointment:", error);
+    throw error;
+  }
+}
+
+// Get available time slots for a therapist on a specific date
+export async function getAvailableTimeSlots(therapistId, date) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const params = new URLSearchParams({ therapistId, date }).toString();
+    return await request(`/appointments/available-time-slots?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting available time slots:", error);
+    throw error;
+  }
+}
+
+// Set tentative availability for a specific date
+export async function setTentativeAvailability(therapistId, date, availability, reason) {
+  return request("/availability/tentative", {
+    method: "POST",
+    body: JSON.stringify({ therapistId, date, availability, reason }),
+  });
+}
+
+// Get tentative availability for a specific date
+export async function getTentativeAvailability(therapistId, date) {
+  const params = new URLSearchParams({ therapistId, date }).toString();
+  return request(`/availability/tentative?${params}`, {
+    method: "GET",
+  });
+}
+
+// Get tentative availability for a date range
+export async function getTentativeAvailabilityRange(therapistId, startDate, endDate) {
+  const params = new URLSearchParams({ therapistId, startDate, endDate }).toString();
+  return request(`/availability/tentative-range?${params}`, {
+    method: "GET",
+  });
+}
+
+// Remove tentative availability
+export async function removeTentativeAvailability(therapistId, date) {
+  return request("/availability/tentative", {
+    method: "DELETE",
+    body: JSON.stringify({ therapistId, date }),
+  });
+}
+
+// ==================== MEDITATION VIDEOS ====================
+
+// Get all meditation videos
+export async function getMeditationVideos(params = {}) {
+  const queryParams = new URLSearchParams(params).toString();
+  return request(`/meditation${queryParams ? `?${queryParams}` : ''}`, {
+    headers: userHeaders(),
+  });
+}
+
+// Get single meditation video
+export async function getMeditationVideo(id) {
+  return request(`/meditation/${id}`, {
+    headers: userHeaders(),
+  });
+}
+
+// Create meditation video (Admin only)
+export async function createMeditationVideo(videoData) {
+  return request('/meditation', {
+    method: 'POST',
+    body: JSON.stringify(videoData),
+    headers: userHeaders(),
+  });
+}
+
+// Update meditation video (Admin only)
+export async function updateMeditationVideo(id, videoData) {
+  return request(`/meditation/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(videoData),
+    headers: userHeaders(),
+  });
+}
+
+// Delete meditation video (Admin only)
+export async function deleteMeditationVideo(id) {
+  return request(`/meditation/${id}`, {
+    method: 'DELETE',
+    headers: userHeaders(),
+  });
+}
+
+// Like/unlike meditation video
+export async function toggleMeditationVideoLike(id) {
+  return request(`/meditation/${id}/like`, {
+    method: 'POST',
+    headers: userHeaders(),
+  });
+}
+
+// Get meditation video categories
+export async function getMeditationCategories() {
+  return request('/meditation/categories', {
+    headers: userHeaders(),
+  });
+}
+
+// ==================== PATIENT MANAGEMENT ====================
+
+// Create a new patient
+export async function createPatient(patientData) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request("/patients", {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(patientData)
+    });
+  } catch (error) {
+    console.error("Error creating patient:", error);
+    throw error;
+  }
+}
+
+// Get all patients for the current therapist
+export async function getPatients() {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request("/patients", {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting patients:", error);
+    throw error;
+  }
+}
+
+// Get a specific patient
+export async function getPatient(id) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/patients/${id}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting patient:", error);
+    throw error;
+  }
+}
+
+// Add a consultation note to a patient
+export async function addPatientNote(patientId, noteData) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/patients/${patientId}/notes`, {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(noteData)
+    });
+  } catch (error) {
+    console.error("Error adding patient note:", error);
+    throw error;
+  }
+}
+
+// Update patient information
+export async function updatePatient(id, patientData) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request(`/patients/${id}`, {
+      method: "PUT",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(patientData)
+    });
+  } catch (error) {
+    console.error("Error updating patient:", error);
+    throw error;
   }
 }

@@ -86,7 +86,7 @@ router.get('/therapists', async (_req, res) => {
       userType: "therapist", 
       isApproved: true,
       isActive: true
-    }).select("name email age license");
+    }).select("name email age license specialization bio rating experience");
     
     return res.json({ therapists });
   } catch (err) {

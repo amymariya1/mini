@@ -11,7 +11,11 @@ export default function TherapistRegister() {
     password: "", 
     confirmPassword: "", 
     age: "",
-    license: "" // Additional field for therapists
+    license: "",
+    specialization: "",
+    bio: "",
+    rating: 0,
+    experience: 0
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -38,7 +42,7 @@ export default function TherapistRegister() {
     
     // Validate all fields are filled
     if (!form.name || !form.email || !form.password || !form.confirmPassword || form.age === "" || !form.license) {
-      setError("Please fill in all fields.");
+      setError("Please fill in all required fields.");
       return;
     }
     
@@ -69,13 +73,18 @@ export default function TherapistRegister() {
         email: form.email, 
         password: form.password, 
         age: ageNum,
-        license: form.license
+        license: form.license,
+        specialization: form.specialization,
+        bio: form.bio,
+        rating: Number(form.rating) || 0,
+        experience: Number(form.experience) || 0,
+        userType: 'therapist'
       });
       
-      if (response.success) {
+      if (response && response.user) {
         setSuccess(true);
       } else {
-        setError(response.message || "Registration failed");
+        setError((response && response.message) || "Registration failed");
       }
     } catch (err) {
       // Handle specific error for duplicate email
@@ -174,6 +183,31 @@ export default function TherapistRegister() {
         </label>
 
         <label>
+          <div style={{ fontSize: 14, marginBottom: 6 }}>Specialization</div>
+          <input
+            type="text"
+            name="specialization"
+            value={form.specialization}
+            onChange={handleChange}
+            placeholder="e.g., Anxiety, Depression, Trauma"
+            className="input"
+          />
+        </label>
+
+        <label>
+          <div style={{ fontSize: 14, marginBottom: 6 }}>Years of Experience</div>
+          <input
+            type="number"
+            name="experience"
+            min={0}
+            value={form.experience}
+            onChange={handleChange}
+            placeholder="5"
+            className="input"
+          />
+        </label>
+
+        <label>
           <div style={{ fontSize: 14, marginBottom: 6 }}>Age</div>
           <input
             type="number"
@@ -184,6 +218,18 @@ export default function TherapistRegister() {
             onChange={handleChange}
             placeholder="18"
             className="input"
+          />
+        </label>
+
+        <label>
+          <div style={{ fontSize: 14, marginBottom: 6 }}>Bio</div>
+          <textarea
+            name="bio"
+            value={form.bio}
+            onChange={handleChange}
+            placeholder="Tell us about your background and approach to therapy..."
+            className="input"
+            rows={4}
           />
         </label>
 

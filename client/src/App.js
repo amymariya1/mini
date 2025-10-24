@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import "./App.css";
 import LandingPage from "./pages/LandingPage";
@@ -32,40 +33,226 @@ import HabitTracker from "./pages/HabitTracker";
 import CheckoutAddress from "./pages/CheckoutAddress";
 import Inventory from "./pages/Inventory";
 import TherapistDashboard from "./pages/TherapistDashboard";
+import TherapistCalendar from "./pages/TherapistCalendar";
 import TherapistRegister from "./pages/TherapistRegister";
+import BookTherapist from "./pages/BookTherapist";
 import AutoForgotPassword from "./pages/AutoForgotPassword";
 import TestAutoForgotPassword from "./pages/TestAutoForgotPassword";
 import DebugAutoForgotPassword from "./pages/DebugAutoForgotPassword";
 import TestAPI from "./pages/TestAPI"; // ✅ added import
 import ReferPatient from "./pages/ReferPatient";
 import About from "./pages/About";
-import Therapists from "./pages/Therapists"; // ✅ added import
+import DepressionDetail from "./pages/DepressionDetail";
+import AnxietyDetail from "./pages/AnxietyDetail";
+import StressDetail from "./pages/StressDetail";
+import VideoPlatform from "./pages/VideoPlatform";
+import BookAppointment from "./pages/BookAppointment";
+import PatientChat from "./pages/PatientChat";
+import TestComponent from "./pages/TestComponent"; // Test component import
+import Meditation from "./pages/Meditation";
+import AdminMeditation from "./pages/AdminMeditation";
+import { ThemeProvider } from "./context/ThemeContext";
 
 function isAuthenticated() {
   try {
-    const fb = !!auth.currentUser;
+    // Check if we have a user in localStorage (API auth)
     const raw = localStorage.getItem("mm_user");
-    let api = false;
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        api = parsed && parsed.authSource === "api";
+        // If we have a user from API auth, consider authenticated
+        if (parsed && (parsed.authSource === "api" || parsed.id || parsed.email)) {
+          console.log("User authenticated via localStorage:", parsed);
+          return true;
+        }
       } catch (_) {
-        api = false;
+        // If parsing fails, continue to check Firebase auth
       }
     }
-    return fb || api;
-  } catch {
+    
+    // Check Firebase auth state
+    // Note: auth.currentUser might be null during initialization
+    // but we should still check it
+    const firebaseAuth = !!auth.currentUser;
+    console.log("Firebase auth state:", firebaseAuth);
+    return firebaseAuth;
+  } catch (error) {
+    console.error("Error in isAuthenticated:", error);
+    // Fallback to Firebase auth state
     return !!auth.currentUser;
   }
 }
 
-function RequireAuth({ children }) {
-  return isAuthenticated() ? children : <Navigate to="/login" replace />;
+function RequireAuth({ children, allowedRoles = [] }) {
+  const [authState, setAuthState] = useState({
+    isLoading: true,
+    isAuthorized: false,
+    shouldRedirect: false,
+    userType: null
+  });
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const userRaw = localStorage.getItem('mm_user');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const isAuthed = isAuthenticated();
+        
+        // If not authenticated, redirect to login
+        if (!isAuthed) {
+          console.log("User not authenticated, redirecting to login");
+          setAuthState({
+            isLoading: false,
+            isAuthorized: false,
+            shouldRedirect: true,
+            userType: null
+          });
+          return;
+        }
+
+        // If no specific roles required, just check authentication
+        if (allowedRoles.length === 0) {
+          console.log("User authenticated, no role restrictions");
+          setAuthState({
+            isLoading: false,
+            isAuthorized: true,
+            shouldRedirect: false,
+            userType: user?.userType || null
+          });
+          return;
+        }
+
+        // Check if user has required role
+        if (user?.userType && allowedRoles.includes(user.userType)) {
+          setAuthState({
+            isLoading: false,
+            isAuthorized: true,
+            shouldRedirect: false,
+            userType: user?.userType || null
+          });
+        } else {
+          setAuthState({
+            isLoading: false,
+            isAuthorized: false,
+            shouldRedirect: true,
+            userType: user?.userType || null
+          });
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setAuthState({
+          isLoading: false,
+          isAuthorized: false,
+          shouldRedirect: true,
+          userType: null
+        });
+      }
+    };
+
+    checkAuth();
+  }, [allowedRoles.join(',')]); // Use stringified version to prevent infinite loop
+
+  // Show loading state initially to prevent flickering
+  if (authState.isLoading) {
+    return null; // Or a loading spinner
+  }
+
+  if (authState.shouldRedirect) {
+    // Redirect based on authentication status and user type
+    if (!isAuthenticated()) {
+      // Not authenticated at all, redirect to login
+      return <Navigate to="/login" replace />;
+    } else if (authState.userType === 'admin') {
+      // Admin user trying to access non-admin route, redirect to admin dashboard
+      return <Navigate to="/admin/dashboard" replace />;
+    } else if (authState.userType === 'therapist') {
+      // Therapist user, redirect to therapist dashboard
+      return <Navigate to="/therapist-dashboard" replace />;
+    } else {
+      // Regular user, redirect to home
+      return <Navigate to="/home" replace />;
+    }
+  }
+
+  return children;
 }
 
 function PublicOnly({ children }) {
-  return isAuthenticated() ? <Navigate to="/home" replace /> : children;
+  const [authState, setAuthState] = useState({
+    isLoading: true,
+    isAuthed: false,
+    userType: null
+  });
+
+  useEffect(() => {
+    const checkAuth = () => {
+      try {
+        const isAuthed = isAuthenticated();
+        
+        if (isAuthed) {
+          // Get user type to determine appropriate redirect
+          const raw = localStorage.getItem("mm_user");
+          if (raw) {
+            try {
+              const user = JSON.parse(raw);
+              setAuthState({
+                isLoading: false,
+                isAuthed: true,
+                userType: user?.userType || null
+              });
+            } catch (e) {
+              console.error("Error parsing user data:", e);
+              setAuthState({
+                isLoading: false,
+                isAuthed: true,
+                userType: null
+              });
+            }
+          } else {
+            setAuthState({
+              isLoading: false,
+              isAuthed: true,
+              userType: null
+            });
+          }
+        } else {
+          setAuthState({
+            isLoading: false,
+            isAuthed: false,
+            userType: null
+          });
+        }
+      } catch (error) {
+        console.error("Error in authentication check:", error);
+        setAuthState({
+          isLoading: false,
+          isAuthed: false,
+          userType: null
+        });
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Show loading state initially to prevent flickering
+  if (authState.isLoading) {
+    return null; // Or a loading spinner
+  }
+
+  // If user is authenticated, redirect to appropriate dashboard
+  if (authState.isAuthed) {
+    // Redirect based on user type
+    if (authState.userType === 'admin') {
+      return <Navigate to="/admin/dashboard" replace />;
+    } else if (authState.userType === 'therapist') {
+      return <Navigate to="/therapist-dashboard" replace />;
+    } else {
+      return <Navigate to="/home" replace />;
+    }
+  }
+
+  return children;
 }
 
 // ✅ Admin authentication check
@@ -153,6 +340,14 @@ function AnimatedRoutes() {
           element={
             <RequireAuth>
               <PageTransition><Shopping /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/meditation"
+          element={
+            <RequireAuth>
+              <PageTransition><Meditation /></PageTransition>
             </RequireAuth>
           }
         />
@@ -284,11 +479,38 @@ function AnimatedRoutes() {
             </RequireAuth>
           }
         />
+
         <Route
-          path="/therapists"
+          path="/depression-detail"
           element={
             <RequireAuth>
-              <PageTransition><Therapists /></PageTransition>
+              <PageTransition><DepressionDetail /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/anxiety-detail"
+          element={
+            <RequireAuth>
+              <PageTransition><AnxietyDetail /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/stress-detail"
+          element={
+            <RequireAuth>
+              <PageTransition><StressDetail /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        
+        {/* Video Platform Route */}
+        <Route
+          path="/video-platform"
+          element={
+            <RequireAuth>
+              <PageTransition><VideoPlatform /></PageTransition>
             </RequireAuth>
           }
         />
@@ -297,8 +519,18 @@ function AnimatedRoutes() {
         <Route
           path="/therapist-dashboard"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={['therapist']}>
               <PageTransition><TherapistDashboard /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        
+        {/* ✅ Therapist Calendar Route */}
+        <Route
+          path="/therapist-calendar"
+          element={
+            <RequireAuth allowedRoles={['therapist']}>
+              <PageTransition><TherapistCalendar /></PageTransition>
             </RequireAuth>
           }
         />
@@ -319,6 +551,54 @@ function AnimatedRoutes() {
           element={
             <RequireAuth>
               <Navigate to="/therapist-dashboard" replace />
+            </RequireAuth>
+          }
+        />
+        
+        {/* ✅ Book Therapist Route */}
+        <Route
+          path="/therapists"
+          element={
+            <RequireAuth>
+              <PageTransition><BookTherapist /></PageTransition>
+            </RequireAuth>
+          }
+        />
+
+        {/* ✅ Test Component Route */}
+        <Route
+          path="/test-component"
+          element={
+            <RequireAuth>
+              <PageTransition><TestComponent /></PageTransition>
+            </RequireAuth>
+          }
+        />
+
+        {/* ✅ Book Appointment Routes */}
+        <Route
+          path="/appointments"
+          element={
+            <RequireAuth>
+              <PageTransition><BookAppointment /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/book-appointment/:therapistId"
+          element={
+            <RequireAuth>
+              <PageTransition><BookAppointment /></PageTransition>
+            </RequireAuth>
+          }
+        />
+
+        {/* ✅ Patient Chat Route */}
+        <Route
+          path="/patient-chat/:therapistId"
+          element={
+            <RequireAuth>
+              <PageTransition><PatientChat /></PageTransition>
             </RequireAuth>
           }
         />
@@ -344,6 +624,14 @@ function AnimatedRoutes() {
             </RequireAdmin>
           }
         />
+        <Route
+          path="/admin/meditation"
+          element={
+            <RequireAdmin>
+              <PageTransition><AdminMeditation /></PageTransition>
+            </RequireAdmin>
+          }
+        />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -354,11 +642,13 @@ function AnimatedRoutes() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <ThemeLayout>
-        <AnimatedRoutes />
-      </ThemeLayout>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <ThemeLayout>
+          <AnimatedRoutes />
+        </ThemeLayout>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

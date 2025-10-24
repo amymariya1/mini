@@ -12,6 +12,7 @@ import {
   getUser,
   updateUser,
   toggleUserStatus,
+  deleteUser,
   // Products
   listProducts,
   getProduct,
@@ -38,6 +39,7 @@ import {
   // Therapists
   listPendingTherapists,
   approveTherapist,
+  rejectTherapist,
 } from "../controllers/admin.controller.js";
 
 const router = express.Router();
@@ -52,6 +54,7 @@ router.get("/users", requireAdmin, listUsers);
 router.get("/users/:id", requireAdmin, getUser);
 router.put("/users/:id", requireAdmin, updateUser);
 router.patch("/users/:id/toggle-status", requireAdmin, toggleUserStatus);
+router.delete("/users/:id", requireAdmin, deleteUser);
 
 // ✅ Pending therapists
 router.get("/therapists/pending", requireAdmin, listPendingTherapists);
@@ -77,6 +80,9 @@ router.get("/therapists", requireAdmin, async (req, res) => {
 
 // ✅ Approve therapist
 router.patch("/therapists/:id/approve", requireAdmin, approveTherapist);
+
+// ✅ Reject therapist
+router.patch("/therapists/:id/reject", requireAdmin, rejectTherapist);
 
 /* ----------------------------- PRODUCTS ----------------------------- */
 router.get("/products", requireAdmin, listProducts);

@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import { 
+  getTherapistAvailability, 
+  getTherapistAvailabilityRange, 
+  getUserAppointments,
+  getTentativeAvailability,
+  getTentativeAvailabilityRange
+} from "../services/api";
 
 // Simple color scale from low (green) to high (red) for assessment totals
 function scoreToColor(total) {
@@ -81,8 +88,20 @@ export function MoodCalendar() {
   const [viewDate, setViewDate] = useState(() => new Date());
   const [history, setHistory] = useState([]); // [{date:'YYYY-MM-DD', D, A, S}]
   const [journal, setJournal] = useState({}); // { 'YYYY-MM-DD': { note, mood, moodTag } }
+  const [therapistAvailability, setTherapistAvailability] = useState({}); // { 'YYYY-MM-DD': availability }
+  const [userAppointments, setUserAppointments] = useState([]); // Array of booked appointments
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Try to get user from localStorage
+    try {
+      const raw = localStorage.getItem("mm_user");
+      if (raw) {
+        const userData = JSON.parse(raw);
+        setUser(userData);
+      }
+    } catch (_) {}
+    
     try {
       const raw = localStorage.getItem("mm_assessment_history");
       if (raw) setHistory(JSON.parse(raw));
@@ -92,6 +111,62 @@ export function MoodCalendar() {
       if (jr) setJournal(JSON.parse(jr));
     } catch (_) {}
   }, []);
+
+  // Fetch therapist availability for the current month
+  useEffect(() => {
+    async function fetchTherapistAvailability() {
+      if (!user) return;
+      
+      try {
+        // For demo purposes, we'll use a sample therapist ID
+        // In a real implementation, you would have a way to select a therapist
+        const therapistId = "sample-therapist-id";
+        
+        // Calculate start and end dates for the month
+        const startDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+        const endDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
+        
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        
+        // Fetch availability for the date range
+        const response = await getTherapistAvailabilityRange(therapistId, startDateStr, endDateStr);
+        
+        if (response.success && response.data) {
+          // Convert array to map for easier lookup
+          const availabilityMap = {};
+          response.data.forEach(item => {
+            const dateStr = new Date(item.date).toISOString().split('T')[0];
+            availabilityMap[dateStr] = item.availability;
+          });
+          setTherapistAvailability(availabilityMap);
+        }
+      } catch (error) {
+        console.error("Error fetching therapist availability:", error);
+      }
+    }
+    
+    fetchTherapistAvailability();
+  }, [viewDate, user]);
+
+  // Fetch user appointments
+  useEffect(() => {
+    async function fetchUserAppointments() {
+      if (!user) return;
+      
+      try {
+        const response = await getUserAppointments(user._id);
+        
+        if (response.success && response.data) {
+          setUserAppointments(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching user appointments:", error);
+      }
+    }
+    
+    fetchUserAppointments();
+  }, [user]);
 
   // Refresh journal when window regains focus or visibility changes (e.g., after navigating back)
   useEffect(() => {
@@ -138,6 +213,30 @@ export function MoodCalendar() {
   }
   function today() {
     setViewDate(new Date());
+  }
+
+  // Get color based on therapist availability
+  function getAvailabilityColor(dateStr) {
+    const availability = therapistAvailability[dateStr];
+    switch (availability) {
+      case 'full_day':
+        return '#3b82f6'; // Blue for full day
+      case 'morning':
+        return '#60a5fa'; // Light blue for morning
+      case 'evening':
+        return '#93c5fd'; // Lighter blue for evening
+      case 'none':
+      default:
+        return '#e5e7eb'; // Gray for no availability
+    }
+  }
+
+  // Check if there's a booked appointment on this date
+  function hasAppointment(dateStr) {
+    return userAppointments.some(appt => {
+      const apptDateStr = new Date(appt.date).toISOString().split('T')[0];
+      return apptDateStr === dateStr && appt.status === 'scheduled';
+    });
   }
 
   const navigate = useNavigate();
@@ -193,6 +292,14 @@ export function MoodCalendar() {
             const moodTag = journal?.[key]?.moodTag;
             const boxBg = moodTag ? tagColors[moodTag] : color;
             const dateColor = "#6b7280";
+            
+            // Get therapist availability for this date
+            const availability = therapistAvailability[key];
+            const availabilityColor = getAvailabilityColor(key);
+            
+            // Check if user has an appointment on this date
+            const hasAppt = hasAppointment(key);
+            
             return (
               <button
                 key={idx}
@@ -208,7 +315,41 @@ export function MoodCalendar() {
                 }}
               >
                 <div style={{ position: "absolute", top: 6, right: 8, fontSize: 12, color: dateColor }}>{day}</div>
-                <div style={{ marginTop: 18, height: 48, borderRadius: 8, background: boxBg, boxShadow: rec ? "inset 0 0 0 2px rgba(0,0,0,0.05)" : "none" }} />
+                <div style={{ 
+                  marginTop: 18, 
+                  height: 48, 
+                  borderRadius: 8, 
+                  background: boxBg, 
+                  boxShadow: rec ? "inset 0 0 0 2px rgba(0,0,0,0.05)" : "none",
+                  position: "relative"
+                }}>
+                  {/* Show availability indicator */}
+                  {availability && availability !== 'none' && (
+                    <div style={{
+                      position: "absolute",
+                      top: 2,
+                      left: 2,
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      background: availabilityColor,
+                      border: "1px solid white"
+                    }}></div>
+                  )}
+                  {/* Show appointment indicator */}
+                  {hasAppt && (
+                    <div style={{
+                      position: "absolute",
+                      top: 2,
+                      right: 2,
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      background: "#10b981", // Green for appointment
+                      border: "1px solid white"
+                    }}></div>
+                  )}
+                </div>
                 {rec && (
                   <div style={{ marginTop: 6, fontSize: 11, color: "#374151" }}>D{rec.D}|A{rec.A}|S{rec.S}</div>
                 )}
@@ -230,13 +371,124 @@ function WeeklyPlanner() {
   const navigate = useNavigate();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [journal, setJournal] = useState({}); // { 'YYYY-MM-DD': {note, mood} }
+  const [therapistAvailability, setTherapistAvailability] = useState({}); // { 'YYYY-MM-DD': availability }
+  const [tentativeAvailability, setTentativeAvailability] = useState({}); // { 'YYYY-MM-DD': { availability, reason } }
+  const [userAppointments, setUserAppointments] = useState([]); // Array of booked appointments
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Try to get user from localStorage
+    try {
+      const raw = localStorage.getItem("mm_user");
+      if (raw) {
+        const userData = JSON.parse(raw);
+        setUser(userData);
+      }
+    } catch (_) {}
+    
     try {
       const raw = localStorage.getItem("mm_journal");
       if (raw) setJournal(JSON.parse(raw));
     } catch (_) {}
   }, []);
+
+  // Fetch therapist availability for the current week
+  useEffect(() => {
+    async function fetchTherapistAvailability() {
+      if (!user) return;
+      
+      try {
+        // For demo purposes, we'll use a sample therapist ID
+        // In a real implementation, you would have a way to select a therapist
+        const therapistId = "sample-therapist-id";
+        
+        // Calculate start and end dates for the week
+        const startDate = new Date(viewDate);
+        startDate.setDate(startDate.getDate() - startDate.getDay()); // Start of week (Sunday)
+        
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6); // End of week (Saturday)
+        
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        
+        // Fetch availability for the date range
+        const response = await getTherapistAvailabilityRange(therapistId, startDateStr, endDateStr);
+        
+        if (response.success && response.data) {
+          // Convert array to map for easier lookup
+          const availabilityMap = {};
+          response.data.forEach(item => {
+            const dateStr = new Date(item.date).toISOString().split('T')[0];
+            availabilityMap[dateStr] = item.availability;
+          });
+          setTherapistAvailability(availabilityMap);
+        }
+      } catch (error) {
+        console.error("Error fetching therapist availability:", error);
+      }
+    }
+    
+    fetchTherapistAvailability();
+  }, [viewDate, user]);
+
+  // Fetch tentative availability for the current week
+  useEffect(() => {
+    async function fetchTentativeAvailability() {
+      if (!user || user.role !== 'therapist') return;
+      
+      try {
+        // For demo purposes, we'll use the current user as therapist
+        const therapistId = user._id;
+        
+        // Calculate start and end dates for the week
+        const startDate = new Date(viewDate);
+        startDate.setDate(startDate.getDate() - startDate.getDay()); // Start of week (Sunday)
+        
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6); // End of week (Saturday)
+        
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        
+        // Fetch tentative availability for the date range
+        const response = await getTentativeAvailabilityRange(therapistId, startDateStr, endDateStr);
+        
+        if (response.success && response.data) {
+          // Convert array to map for easier lookup
+          const tentativeMap = {};
+          response.data.forEach(item => {
+            const dateStr = new Date(item.date).toISOString().split('T')[0];
+            tentativeMap[dateStr] = { availability: item.availability, reason: item.reason };
+          });
+          setTentativeAvailability(tentativeMap);
+        }
+      } catch (error) {
+        console.error("Error fetching tentative availability:", error);
+      }
+    }
+    
+    fetchTentativeAvailability();
+  }, [viewDate, user]);
+
+  // Fetch user appointments
+  useEffect(() => {
+    async function fetchUserAppointments() {
+      if (!user) return;
+      
+      try {
+        const response = await getUserAppointments(user._id);
+        
+        if (response.success && response.data) {
+          setUserAppointments(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching user appointments:", error);
+      }
+    }
+    
+    fetchUserAppointments();
+  }, [user]);
 
   const days = useMemo(() => getWeekDates(viewDate), [viewDate]);
   const weekRange = useMemo(() => formatWeekRange(days), [days]);
@@ -249,6 +501,76 @@ function WeeklyPlanner() {
   }
   function today() {
     setViewDate(new Date());
+  }
+
+  // Get availability text for display
+  function getAvailabilityText(dateStr) {
+    // Check for tentative availability first
+    if (tentativeAvailability[dateStr]) {
+      const tentative = tentativeAvailability[dateStr];
+      if (tentative.availability === 'tentative') {
+        return 'Tentative availability - May change';
+      }
+      return getAvailabilityTextForValue(tentative.availability);
+    }
+    
+    // Check for confirmed availability
+    const availability = therapistAvailability[dateStr];
+    return getAvailabilityTextForValue(availability);
+  }
+
+  // Helper function to get text for availability value
+  function getAvailabilityTextForValue(availability) {
+    switch (availability) {
+      case 'full_day':
+        return 'Available all day';
+      case 'morning':
+        return 'Morning only';
+      case 'evening':
+        return 'Evening only';
+      case 'none':
+      default:
+        return 'Not available';
+    }
+  }
+
+  // Get availability color
+  function getAvailabilityColor(dateStr) {
+    // Check for tentative availability first
+    if (tentativeAvailability[dateStr]) {
+      const tentative = tentativeAvailability[dateStr];
+      if (tentative.availability === 'tentative') {
+        return '#f59e0b'; // Amber for tentative
+      }
+      return getAvailabilityColorForValue(tentative.availability);
+    }
+    
+    // Check for confirmed availability
+    const availability = therapistAvailability[dateStr];
+    return getAvailabilityColorForValue(availability);
+  }
+
+  // Helper function to get color for availability value
+  function getAvailabilityColorForValue(availability) {
+    switch (availability) {
+      case 'full_day':
+        return '#3b82f6'; // Blue for full day
+      case 'morning':
+        return '#60a5fa'; // Light blue for morning
+      case 'evening':
+        return '#93c5fd'; // Lighter blue for evening
+      case 'none':
+      default:
+        return '#e5e7eb'; // Gray for no availability
+    }
+  }
+
+  // Check if there's a booked appointment on this date
+  function hasAppointment(dateStr) {
+    return userAppointments.some(appt => {
+      const apptDateStr = new Date(appt.date).toISOString().split('T')[0];
+      return apptDateStr === dateStr && appt.status === 'scheduled';
+    });
   }
 
   return (
@@ -336,6 +658,14 @@ function WeeklyPlanner() {
           const tag = j.moodTag ? tagColors[j.moodTag] : null;
           const circleBg = tag ? tag.bg : "linear-gradient(135deg, #c084fc, #a78bfa)";
           const circleColor = tag ? tag.color : "white";
+          
+          // Get therapist availability for this date
+          const availabilityText = getAvailabilityText(d.key);
+          const availabilityColor = getAvailabilityColor(d.key);
+          
+          // Check if user has an appointment on this date
+          const hasAppt = hasAppointment(d.key);
+          
           return (
             <button
               key={d.key}
@@ -352,7 +682,7 @@ function WeeklyPlanner() {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 14px 28px rgba(155,93,229,0.16)";
+                e.currentTarget.style.boxShadow = "0 14px 28px rgba(192,132,252,0.45)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
@@ -379,6 +709,38 @@ function WeeklyPlanner() {
                 >
                   {d.dayNumber}
                 </div>
+              </div>
+
+              {/* Therapist availability */}
+              <div style={{ 
+                marginTop: 8, 
+                display: "flex", 
+                alignItems: "center", 
+                gap: 6,
+                padding: "6px 10px",
+                background: "#f0f9ff",
+                borderRadius: 6,
+                border: "1px solid #bae6fd"
+              }}>
+                <div style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: availabilityColor
+                }}></div>
+                <span style={{ fontSize: 11, color: "#3b82f6" }}>
+                  {availabilityText}
+                </span>
+                {/* Show appointment indicator */}
+                {hasAppt && (
+                  <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#10b981", // Green for appointment
+                    marginLeft: 6
+                  }}></div>
+                )}
               </div>
 
               {/* Mood pill + mood tag if present */}
@@ -445,8 +807,20 @@ function DailyView() {
   const [viewDate, setViewDate] = useState(() => new Date());
   const [journal, setJournal] = useState({}); // { 'YYYY-MM-DD': { note, mood, moodTag } }
   const [history, setHistory] = useState([]); // [{date:'YYYY-MM-DD', D, A, S}]
+  const [therapistAvailability, setTherapistAvailability] = useState(null);
+  const [tentativeAvailability, setTentativeAvailability] = useState(null);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Try to get user from localStorage
+    try {
+      const raw = localStorage.getItem("mm_user");
+      if (raw) {
+        const userData = JSON.parse(raw);
+        setUser(userData);
+      }
+    } catch (_) {}
+    
     try {
       const raw = localStorage.getItem('mm_journal');
       setJournal(raw ? JSON.parse(raw) : {});
@@ -456,6 +830,59 @@ function DailyView() {
       setHistory(hist ? JSON.parse(hist) : []);
     } catch (_) {}
   }, []);
+
+  // Fetch therapist availability for the current date
+  useEffect(() => {
+    async function fetchTherapistAvailability() {
+      if (!user) return;
+      
+      try {
+        // For demo purposes, we'll use a sample therapist ID
+        // In a real implementation, you would have a way to select a therapist
+        const therapistId = "sample-therapist-id";
+        
+        // Get date string for the current view date
+        const dateStr = viewDate.toISOString().split('T')[0];
+        
+        // Fetch availability for this date
+        const response = await getTherapistAvailability(therapistId, dateStr);
+        
+        if (response.success && response.data) {
+          setTherapistAvailability(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching therapist availability:", error);
+      }
+    }
+    
+    fetchTherapistAvailability();
+  }, [viewDate, user]);
+
+  // Fetch tentative availability for the current date
+  useEffect(() => {
+    async function fetchTentativeAvailability() {
+      if (!user || user.role !== 'therapist') return;
+      
+      try {
+        // For demo purposes, we'll use the current user as therapist
+        const therapistId = user._id;
+        
+        // Get date string for the current view date
+        const dateStr = viewDate.toISOString().split('T')[0];
+        
+        // Fetch tentative availability for this date
+        const response = await getTentativeAvailability(therapistId, dateStr);
+        
+        if (response.success && response.data) {
+          setTentativeAvailability(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching tentative availability:", error);
+      }
+    }
+    
+    fetchTentativeAvailability();
+  }, [viewDate, user]);
 
   const key = useMemo(() => {
     const yyyy = viewDate.getFullYear();
@@ -481,6 +908,50 @@ function DailyView() {
 
   const dateLabel = viewDate.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
 
+  // Get availability text for display
+  function getAvailabilityText() {
+    // Check for tentative availability first
+    if (tentativeAvailability && tentativeAvailability.availability === 'tentative') {
+      return 'Tentative availability - May change';
+    }
+    
+    if (!therapistAvailability) return 'Availability not loaded';
+    
+    switch (therapistAvailability.availability) {
+      case 'full_day':
+        return 'Therapist available all day';
+      case 'morning':
+        return 'Therapist available in the morning';
+      case 'evening':
+        return 'Therapist available in the evening';
+      case 'none':
+      default:
+        return 'Therapist not available on this date';
+    }
+  }
+
+  // Get availability color
+  function getAvailabilityColor() {
+    // Check for tentative availability first
+    if (tentativeAvailability && tentativeAvailability.availability === 'tentative') {
+      return '#f59e0b'; // Amber for tentative
+    }
+    
+    if (!therapistAvailability) return '#e5e7eb';
+    
+    switch (therapistAvailability.availability) {
+      case 'full_day':
+        return '#3b82f6'; // Blue for full day
+      case 'morning':
+        return '#60a5fa'; // Light blue for morning
+      case 'evening':
+        return '#93c5fd'; // Lighter blue for evening
+      case 'none':
+      default:
+        return '#e5e7eb'; // Gray for no availability
+    }
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <div className="card" style={{ padding:16, marginBottom:12 }}>
@@ -495,6 +966,48 @@ function DailyView() {
       </div>
 
       <div className="grid-3" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:12 }}>
+        <div className="card" style={{ padding:16 }}>
+          <div className="resource-title">Therapist Availability</div>
+          <div style={{ 
+            marginTop: 8, 
+            padding: "12px", 
+            background: "#f0f9ff", 
+            borderRadius: 8, 
+            border: "1px solid #bae6fd",
+            display: "flex",
+            alignItems: "center",
+            gap: 12
+          }}>
+            <div style={{
+              width: 16,
+              height: 16,
+              borderRadius: "50%",
+              background: getAvailabilityColor()
+            }}></div>
+            <div style={{ fontSize: 14, color: "#3b82f6" }}>
+              {getAvailabilityText()}
+            </div>
+          </div>
+          {tentativeAvailability && tentativeAvailability.availability === 'tentative' && (
+            <div style={{ 
+              marginTop: 8, 
+              padding: "8px", 
+              background: "#fffbeb", 
+              borderRadius: 8, 
+              border: "1px solid #fde68a",
+              fontSize: 12,
+              color: "#92400e"
+            }}>
+              ⚠️ This availability is tentative and may change. Please confirm with your therapist before booking.
+            </div>
+          )}
+          <div style={{ marginTop: 12 }}>
+            <button className="cta-btn" onClick={() => navigate('/therapists')} style={{ color:'black' }}>
+              Book Appointment
+            </button>
+          </div>
+        </div>
+
         <div className="card" style={{ padding:16 }}>
           <div className="resource-title">Assessment</div>
           {rec ? (

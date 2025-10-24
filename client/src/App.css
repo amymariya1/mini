@@ -3,6 +3,92 @@
    Modern, Clean, Sophisticated UI
    ============================= */
 
+/* Dark Mode Styles */
+body.dark-mode {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+body.dark-mode .navbar {
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+body.dark-mode .navbar-brand {
+  color: #f1f5f9;
+}
+
+body.dark-mode .nav-link {
+  color: #cbd5e1;
+}
+
+body.dark-mode .nav-link:hover {
+  color: #f1f5f9;
+}
+
+body.dark-mode .card {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+body.dark-mode .calm-main {
+  background-color: #0f172a;
+}
+
+body.dark-mode .app-container {
+  background-color: #0f172a;
+}
+
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode h4,
+body.dark-mode h5,
+body.dark-mode h6 {
+  color: #f1f5f9;
+}
+
+body.dark-mode p {
+  color: #cbd5e1;
+}
+
+body.dark-mode input,
+body.dark-mode textarea,
+body.dark-mode select {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+body.dark-mode button {
+  background-color: #334155;
+  color: #f1f5f9;
+}
+
+body.dark-mode button:hover {
+  background-color: #475569;
+}
+
+/* Light Mode Styles */
+body.light-mode {
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
+body.light-mode .navbar {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+body.light-mode .calm-main {
+  background-color: #f8fafc;
+}
+
+body.light-mode .app-container {
+  background-color: #ffffff;
+}
+
 /* Design Tokens - Archewell-inspired palette */
 :root {
   /* Primary Colors - Sophisticated neutrals */
@@ -80,6 +166,16 @@
   --transition-fast: 150ms ease-in-out;
   --transition-normal: 250ms ease-in-out;
   --transition-slow: 350ms ease-in-out;
+  
+  /* Additional variables for consistency */
+  --primary: #4a3aff;
+  --primary-2: #7c3aed;
+  --accent: #22d3ee;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #1e293b;
+  --muted: #64748b;
+  --shadow-strong: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
 /* Reset and Base Styles */
@@ -196,6 +292,9 @@ body {
   z-index: 50;
   background-color: #ffffff;
   backdrop-filter: blur(10px);
+}
+
+.navbar {
   border-bottom: 1px solid var(--primary-200);
   padding: var(--space-4) 0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -4376,68 +4475,7 @@ body {
 }
 
 
-.cart-total {
-  margin-bottom: 16px;
-  font-size: 1.2rem;
-  color: #2d3748;
-}
 
-.checkout-btn {
-  width: 100%;
-  background: #10b981;
-  color: white;
-  border: none;
-  padding: 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.checkout-btn:hover {
-  background: #059669;
-}
-
-.cart-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 999;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .shopping-layout {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-  
-  .shopping-sidebar {
-    order: 2;
-  }
-  
-  .shopping-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .search-bar {
-    min-width: auto;
-  }
-  
-  .products-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 16px;
-  }
-  
-  .cart-sidebar {
-    width: 100%;
-  }
-}
 
 @media (max-width: 640px) {
   .shopping-container {

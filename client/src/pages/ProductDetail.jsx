@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import "../App.css";
-import { getProduct } from "../services/api";
+import { getProduct, getCart, saveCart } from "../services/api";
 import { isInWishlist, addToWishlist, removeFromWishlist } from "../services/wishlist";
 import { getProductReviews, addProductReview } from "../services/reviews";
 import { getRecommendedProducts, addRecentlyViewedProduct } from "../services/recommendations";
@@ -24,6 +24,52 @@ export default function ProductDetail() {
   const [reviewError, setReviewError] = useState("");
   const [recommendedProducts, setRecommendedProducts] = useState([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(true);
+  const [cart, setCart] = useState([]);
+  const [userId, setUserId] = useState(null);
+
+  // Get user ID from localStorage
+  useEffect(() => {
+    try {
+      const userRaw = localStorage.getItem('mm_user');
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        if (user?.id) {
+          setUserId(user.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error getting user ID:', error);
+    }
+  }, []);
+
+  // Load cart from backend on mount
+  useEffect(() => {
+    async function loadCart() {
+      if (!userId) return;
+      
+      try {
+        console.log('Loading cart from backend for user:', userId);
+        const response = await getCart(userId);
+        const cartData = response.cart?.items || [];
+        setCart(cartData);
+      } catch (error) {
+        console.error('Error loading cart from backend:', error);
+        // Fallback to localStorage
+        try {
+          const raw = localStorage.getItem('mm_cart');
+          console.log('Loading cart from localStorage as fallback:', raw);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) setCart(parsed);
+          }
+        } catch (localStorageError) {
+          console.error('Error loading cart from localStorage:', localStorageError);
+        }
+      }
+    }
+    
+    loadCart();
+  }, [userId]);
 
   // Fetch product details by ID
   useEffect(() => {
@@ -141,6 +187,66 @@ export default function ProductDetail() {
   const handleProductClick = (productId) => {
     navigate(`/product/${productId}`);
   };
+
+  // Function to add product to cart
+  const addToCart = (product) => {
+    if (!product) return;
+    
+    setCart(prev => {
+      const existingItem = prev.find(item => item.id === product._id);
+      if (existingItem) {
+        return prev.map(item =>
+          item.id === product._id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { 
+        id: product._id,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        category: product.category,
+        description: product.description,
+        inStock: product.stock > 0,
+        rating: product.rating || 0,
+        reviews: product.reviews || 0,
+        quantity: 1 
+      }];
+    });
+  };
+
+  // Persist cart to backend when it changes
+  useEffect(() => {
+    async function persistCart() {
+      if (!userId) {
+        // Fallback to localStorage if no user ID
+        try {
+          console.log('Saving cart to localStorage (no user ID):', cart);
+          localStorage.setItem('mm_cart', JSON.stringify(cart));
+        } catch (error) {
+          console.error('Error saving cart to localStorage:', error);
+        }
+        return;
+      }
+      
+      try {
+        console.log('Saving cart to backend for user:', userId, cart);
+        await saveCart(userId, cart);
+      } catch (error) {
+        console.error('Error saving cart to backend:', error);
+        // Fallback to localStorage
+        try {
+          console.log('Saving cart to localStorage as fallback:', cart);
+          localStorage.setItem('mm_cart', JSON.stringify(cart));
+        } catch (localStorageError) {
+          console.error('Error saving cart to localStorage:', localStorageError);
+        }
+      }
+    }
+    
+    persistCart();
+  }, [cart, userId]);
 
   if (!product) {
     return (
@@ -294,9 +400,34 @@ export default function ProductDetail() {
                   border: "none",
                   fontSize: "16px"
                 }}
-                onClick={() => alert("Added to cart!")}
+                onClick={() => {
+                  addToCart(product);
+                  // Show success message
+                  alert("Product added to cart!");
+                }}
               >
                 Add to Cart
+              </button>
+              <button
+                className="cta-btn"
+                style={{
+                  backgroundColor: "#10b981",
+                  color: "white",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  fontWeight: "500",
+                  cursor: "pointer",
+                  border: "none",
+                  fontSize: "16px",
+                  marginLeft: "10px"
+                }}
+                onClick={() => {
+                  addToCart(product);
+                  // Navigate to checkout after adding to cart
+                  navigate("/checkout/address");
+                }}
+              >
+                Buy Now
               </button>
             </div>
           </div>

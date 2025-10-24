@@ -8,225 +8,22 @@ import {
   adminApproveTherapist,
   adminLogout,
   adminToggleUserStatus,
+  adminDeleteUser,
   adminDeleteProduct,
   adminDeletePost,
   adminDeleteQuestion,
   adminCreateProduct,
   adminUpdateProductStock,
   createTherapist,
+  adminGetAllOrders,
+  adminUpdateOrderStatus
 } from "../services/api";
+import { motion } from "framer-motion";
+import { useTheme } from "../context/ThemeContext";
 import "../styles/AdminDashboard.css";
 
-const OrdersManagement = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [statusModal, setStatusModal] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
-  const [statusNote, setStatusNote] = useState('');
-
-  const statusOptions = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'confirmed', label: 'Confirmed' },
-    { value: 'processing', label: 'Processing' },
-    { value: 'shipped', label: 'Shipped' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'cancelled', label: 'Cancelled' }
-  ];
-
-  const statusColors = {
-    pending: '#ff9800',
-    confirmed: '#2196f3',
-    processing: '#9c27b0',
-    shipped: '#ff5722',
-    delivered: '#4caf50',
-    cancelled: '#f44336'
-  };
-
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:5002/api/orders');
-      const data = await response.json();
-      if (data.success) {
-        setOrders(data.orders);
-      }
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const handleStatusUpdate = async () => {
-    if (!selectedOrder || !newStatus) return;
-    
-    try {
-      const response = await fetch(`http://localhost:5002/api/orders/${selectedOrder._id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus,
-          note: statusNote
-        })
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        // Update order in state
-        setOrders(orders.map(order => 
-          order._id === selectedOrder._id ? data.order : order
-        ));
-        
-        // Close modal and reset
-        setStatusModal(false);
-        setSelectedOrder(null);
-        setNewStatus('');
-        setStatusNote('');
-        
-        alert('Order status updated successfully!');
-      } else {
-        alert('Failed to update order status: ' + data.message);
-      }
-    } catch (error) {
-      console.error('Error updating order status:', error);
-      alert('Failed to update order status');
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    const option = statusOptions.find(opt => opt.value === status);
-    return option ? option.label : status;
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  return (
-    <div>
-      <h3>Order Management</h3>
-      <p>Manage and track all customer orders</p>
-      
-      {loading ? (
-        <p>Loading orders...</p>
-      ) : orders.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <h4>No orders found</h4>
-          <p>There are no orders to display yet.</p>
-        </div>
-      ) : (
-        <div className="product-grid">
-          {orders.map(order => (
-            <div key={order._id} className="user-card" style={{ 
-              borderLeft: `4px solid ${statusColors[order.status] || '#9e9e9e'}`
-            }}>
-              <div>
-                <h4>Order #{order.orderId}</h4>
-                <p><strong>Customer:</strong> {order.userEmail}</p>
-                <p><strong>Date:</strong> {formatDate(order.createdAt)}</p>
-                <p><strong>Total:</strong> ₹{order.total.toFixed(2)}</p>
-                <p><strong>Status:</strong> 
-                  <span style={{
-                    backgroundColor: statusColors[order.status] || '#9e9e9e',
-                    color: 'white',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '0.8em'
-                  }}>
-                    {getStatusLabel(order.status)}
-                  </span>
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                <button 
-                  className="cta-btn"
-                  onClick={() => {
-                    setSelectedOrder(order);
-                    setStatusModal(true);
-                    setNewStatus(order.status);
-                  }}
-                >
-                  Update Status
-                </button>
-                <button 
-                  className="cta-btn secondary"
-                  onClick={() => {
-                    setSelectedOrder(order);
-                  }}
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Status Update Modal */}
-      {statusModal && selectedOrder && (
-        <div className="modal-backdrop">
-          <div className="modal" style={{ maxWidth: '500px' }}>
-            <h3>Update Order Status</h3>
-            <p><strong>Order #{selectedOrder.orderId}</strong></p>
-            
-            <div style={{ margin: '15px 0' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>New Status</label>
-              <select 
-                className="input"
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-              >
-                {statusOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div style={{ margin: '15px 0' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Note (Optional)</label>
-              <textarea 
-                className="input"
-                value={statusNote}
-                onChange={(e) => setStatusNote(e.target.value)}
-                placeholder="Add a note about this status update..."
-                rows="3"
-              />
-            </div>
-            
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button 
-                className="cta-btn"
-                onClick={handleStatusUpdate}
-              >
-                Update Status
-              </button>
-              <button 
-                className="cta-btn secondary"
-                onClick={() => {
-                  setStatusModal(false);
-                  setSelectedOrder(null);
-                  setNewStatus('');
-                  setStatusNote('');
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+// Add the import for the new OrderManagement component
+import OrderManagement from "../components/OrderManagement";
 
 // === ICONS ===
 const UsersIcon = () => (
@@ -290,17 +87,18 @@ const LogoutIcon = () => (
 
 const CATEGORY_OPTIONS = ["Wellness", "Equipment", "Books", "Supplements", "Courses", "Other"];
 const NAV_ITEMS = [
-  { id: "users", label: "Users", icon: <UsersIcon /> },
-  { id: "therapists", label: "Therapists", icon: <TherapistsIcon /> },
-  { id: "pending-therapists", label: "Pending Therapists", icon: <PendingIcon /> },
-  { id: "products", label: "Products", icon: <ProductsIcon /> },
-  { id: "orders", label: "Orders", icon: <ProductsIcon /> },
-  { id: "posts", label: "Posts", icon: <PostsIcon /> },
-  { id: "questions", label: "Questions", icon: <QuestionsIcon /> },
+  { id: "dashboard", label: "Dashboard", icon: <ProductsIcon />, emoji: "📊" },
+  { id: "users", label: "Users", icon: <UsersIcon />, emoji: "👥" },
+  { id: "therapists", label: "Therapists", icon: <TherapistsIcon />, emoji: "👩‍⚕️" },
+  { id: "pending-therapists", label: "Pending Therapists", icon: <PendingIcon />, emoji: "⏳" },
+  { id: "products", label: "Products", icon: <ProductsIcon />, emoji: "🛍️" },
+  { id: "orders", label: "Orders", icon: <ProductsIcon />, emoji: "📦" },
+  { id: "posts", label: "Posts", icon: <PostsIcon />, emoji: "📝" },
 ];
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState("users");
+  const { isDarkMode, colors } = useTheme();
+  const [tab, setTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [users, setUsers] = useState([]);
@@ -309,8 +107,10 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([]);
   const [posts, setPosts] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState("");
-  const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, totalProducts: 0, totalPosts: 0 });
+  const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, totalProducts: 0, totalPosts: 0, totalTherapists: 0 });
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddTherapist, setShowAddTherapist] = useState(false);
@@ -323,17 +123,22 @@ export default function AdminDashboard() {
   const [therapistAge, setTherapistAge] = useState("");
   const [therapistLicense, setTherapistLicense] = useState("");
 
+
+
   async function loadUsers() {
     setLoading(true);
     try {
       const data = await adminListUsers();
       const usersData = data.users || [];
-      setUsers(usersData.filter(u => u.userType !== "therapist"));
-      setTherapists(usersData.filter(u => u.userType === "therapist" && u.isApproved));
+      const regularUsers = usersData.filter(u => u.userType !== "therapist");
+      const approvedTherapists = usersData.filter(u => u.userType === "therapist" && u.isApproved);
+      setUsers(regularUsers);
+      setTherapists(approvedTherapists);
       setStats(prev => ({
         ...prev,
-        totalUsers: usersData.filter(u => u.userType !== "therapist").length,
-        activeUsers: usersData.filter(u => u.userType !== "therapist" && u.isActive).length
+        totalUsers: regularUsers.length,
+        activeUsers: regularUsers.filter(u => u.isActive).length,
+        totalTherapists: approvedTherapists.length
       }));
     } catch (err) {
       setError(err.message);
@@ -394,6 +199,22 @@ export default function AdminDashboard() {
     }
   }
 
+  async function loadOrders() {
+    setLoading(true);
+    try {
+      const data = await adminGetAllOrders();
+      if (data.success) {
+        setOrders(data.orders || []);
+      } else {
+        setError(data.message || "Failed to load orders");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleToggleUserStatus(id, newStatus) {
     if (!window.confirm(`Are you sure you want to ${newStatus ? "activate" : "deactivate"} this user?`)) return;
     try {
@@ -403,6 +224,17 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       alert("Failed to update user: " + err.message);
+    }
+  }
+
+  async function handleDeleteUser(id) {
+    if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
+    try {
+      await adminDeleteUser(id);
+      setUsers(users.filter(u => u._id !== id));
+      alert("User deleted successfully!");
+    } catch (err) {
+      alert("Failed to delete user: " + err.message);
     }
   }
 
@@ -480,13 +312,43 @@ export default function AdminDashboard() {
     window.location.href = "/admin/login";
   }
 
+
+
+  async function handleOrderStatusUpdate(orderId, status, note) {
+    try {
+      const response = await adminUpdateOrderStatus(orderId, status, note);
+      if (response.success) {
+        // Update order in state
+        setOrders(orders.map(order => 
+          order._id === orderId ? response.order : order
+        ));
+        
+        alert('Order status updated successfully!');
+      } else {
+        alert('Failed to update order status: ' + response.message);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status');
+    }
+  };
+
   useEffect(() => {
     if (tab === "users" || tab === "therapists") loadUsers();
     if (tab === "pending-therapists") loadPendingTherapists();
     if (tab === "products") loadProducts();
     if (tab === "posts") loadPosts();
     if (tab === "questions") loadQuestions();
+    if (tab === "orders") loadOrders();
+    // For videos tab, we would load videos here in a real implementation
   }, [tab]);
+
+  // Load all data on initial mount for dashboard stats
+  useEffect(() => {
+    loadUsers();
+    loadProducts();
+    loadPosts();
+  }, []);
 
   useEffect(() => {
     setStats(prev => ({
@@ -516,37 +378,309 @@ export default function AdminDashboard() {
   const outOfStockProducts = products.filter(p => p.stock === 0);
   const hasLowStock = lowStockProducts.length > 0;
 
+  async function handleOrderStatusUpdate(orderId, status, note) {
+    try {
+      const response = await adminUpdateOrderStatus(orderId, status, note);
+      if (response.success) {
+        // Update order in state
+        setOrders(orders.map(order => 
+          order._id === orderId ? response.order : order
+        ));
+        
+        alert('Order status updated successfully!');
+      } else {
+        alert('Failed to update order status: ' + response.message);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status');
+    }
+  };
+
   return (
-    <div className="admin-dashboard">
-      <div className="sidebar">
-        <div className="sidebar-header">
-          <h2>MindBridge</h2>
-          <p>Admin Panel</p>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: isDarkMode ? '#0f172a' : '#f8fafc',
+      padding: '0'
+    }}>
+      {/* Top Navigation Bar */}
+      <div style={{
+        background: isDarkMode ? '#1e293b' : '#ffffff',
+        borderBottom: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+        padding: '16px 32px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h2 style={{ 
+            fontSize: '1.8rem', 
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            margin: 0
+          }}>
+            MindMirror Admin
+          </h2>
+          {tab !== 'dashboard' && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setTab('dashboard')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: isDarkMode ? '#334155' : '#f1f5f9',
+                color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: 600
+              }}
+            >
+              ← Back to Dashboard
+            </motion.button>
+          )}
         </div>
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => (
-            <button key={item.id} className={`nav-item ${tab === item.id ? "active" : ""}`} onClick={() => setTab(item.id)}>
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-          <button className="nav-item" onClick={handleLogout}>
-            <LogoutIcon />
-            Logout
-          </button>
-        </nav>
+
+        {/* Profile Menu */}
+        <div style={{ position: 'relative' }}>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            style={{
+              width: '45px',
+              height: '45px',
+              borderRadius: '50%',
+              border: `2px solid ${isDarkMode ? '#667eea' : '#667eea'}`,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '1.2rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            👤
+          </motion.button>
+
+          {showProfileMenu && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                position: 'absolute',
+                top: '55px',
+                right: 0,
+                background: isDarkMode ? '#1e293b' : '#ffffff',
+                border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px',
+                padding: '8px',
+                minWidth: '200px',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                zIndex: 1000
+              }}
+            >
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+                marginBottom: '8px'
+              }}>
+                <p style={{ 
+                  margin: 0, 
+                  fontWeight: 600,
+                  color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                  fontSize: '0.95rem'
+                }}>
+                  Admin User
+                </p>
+                <p style={{ 
+                  margin: '4px 0 0 0', 
+                  fontSize: '0.85rem',
+                  color: isDarkMode ? '#94a3b8' : '#64748b'
+                }}>
+                  Administrator
+                </p>
+              </div>
+              
+              <motion.button
+                whileHover={{ backgroundColor: isDarkMode ? '#334155' : '#f1f5f9' }}
+                onClick={handleLogout}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  textAlign: 'left'
+                }}
+              >
+                🚪 Logout
+              </motion.button>
+            </motion.div>
+          )}
+        </div>
       </div>
 
-      <div className="main-content">
-        <div className="admin-header">
-          <h2>{tab.charAt(0).toUpperCase() + tab.slice(1).replace("-", " ")} Management</h2>
-        </div>
+      {/* Main Content */}
+      <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              background: '#fee2e2',
+              border: '1px solid #fecaca',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '24px',
+              color: '#991b1b'
+            }}
+          >
+            {error}
+          </motion.div>
+        )}
 
-        {error && <div className="error-box">{error}</div>}
+        {/* Dashboard Overview */}
+        {tab === "dashboard" && (
+          <div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '24px',
+              marginBottom: '32px'
+            }}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ y: -5, boxShadow: '0 20px 40px rgba(102, 126, 234, 0.2)' }}
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => setTab('users')}
+              >
+                <div style={{ fontSize: '3rem', marginBottom: '12px' }}>👥</div>
+                <h3 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '8px' }}>{stats.totalUsers}</h3>
+                <p style={{ opacity: 0.9, fontSize: '1.1rem' }}>Total Users</p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ y: -5, boxShadow: '0 20px 40px rgba(79, 172, 254, 0.2)' }}
+                style={{
+                  background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => setTab('products')}
+              >
+                <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🛍️</div>
+                <h3 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '8px' }}>{stats.totalProducts}</h3>
+                <p style={{ opacity: 0.9, fontSize: '1.1rem' }}>Products</p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ y: -5, boxShadow: '0 20px 40px rgba(240, 147, 251, 0.2)' }}
+                style={{
+                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => setTab('therapists')}
+              >
+                <div style={{ fontSize: '3rem', marginBottom: '12px' }}>👩‍⚕️</div>
+                <h3 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '8px' }}>{stats.totalTherapists}</h3>
+                <p style={{ opacity: 0.9, fontSize: '1.1rem' }}>Therapists</p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ y: -5, boxShadow: '0 20px 40px rgba(67, 233, 123, 0.2)' }}
+                style={{
+                  background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => setTab('posts')}
+              >
+                <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📝</div>
+                <h3 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '8px' }}>{stats.totalPosts}</h3>
+                <p style={{ opacity: 0.9, fontSize: '1.1rem' }}>Blog Posts</p>
+              </motion.div>
+            </div>
+
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '20px' }}>Quick Actions</h2>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '20px'
+            }}>
+              {NAV_ITEMS.filter(item => item.id !== 'dashboard').map((item, index) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 + index * 0.05 }}
+                  whileHover={{ y: -3 }}
+                  onClick={() => setTab(item.id)}
+                  style={{
+                    background: isDarkMode ? '#1e293b' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+                    borderRadius: '16px',
+                    padding: '24px',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>{item.emoji}</div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '8px' }}>
+                    {item.label}
+                  </h3>
+                  <p style={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '0.9rem' }}>
+                    Manage {item.label.toLowerCase()}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Search + Add Buttons */}
-        <div style={{ marginBottom: "1rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
+        {tab !== "dashboard" && (
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
             <input className="input" placeholder={`Search ${tab.replace("-", " ")}...`} value={search} onChange={e => setSearch(e.target.value)} />
             {tab === "users" && (
               <button className="cta-btn primary" onClick={() => setShowAddTherapist(true)}>
@@ -646,7 +780,8 @@ export default function AdminDashboard() {
               )}
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {/* USERS TAB */}
         {tab === "users" && (
@@ -661,9 +796,14 @@ export default function AdminDashboard() {
                     <p>{u.email}</p>
                     <p>Type: {u.userType || "user"}</p>
                   </div>
-                  <button className="cta-btn" onClick={() => handleToggleUserStatus(u._id, !u.isActive)}>
-                    {u.isActive ? "Deactivate" : "Activate"}
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button className="cta-btn" onClick={() => handleToggleUserStatus(u._id, !u.isActive)}>
+                      {u.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                    <button className="cta-btn danger" onClick={() => handleDeleteUser(u._id)}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -684,9 +824,14 @@ export default function AdminDashboard() {
                     <p>License: {t.license || "N/A"}</p>
                     <p>Age: {t.age || "N/A"}</p>
                   </div>
-                  <button className="cta-btn" onClick={() => handleToggleTherapistStatus(t._id, !t.isActive)}>
-                    {t.isActive ? "Deactivate" : "Activate"}
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button className="cta-btn" onClick={() => handleToggleTherapistStatus(t._id, !t.isActive)}>
+                      {t.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                    <button className="cta-btn danger" onClick={() => handleDeleteUser(t._id)}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -713,9 +858,14 @@ export default function AdminDashboard() {
                     <p>Age: {t.age || "N/A"}</p>
                     <p>Registered: {new Date(t.createdAt).toLocaleDateString()}</p>
                   </div>
-                  <button className="cta-btn primary" onClick={() => handleApproveTherapist(t._id)}>
-                    Approve
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button className="cta-btn primary" onClick={() => handleApproveTherapist(t._id)}>
+                      Approve
+                    </button>
+                    <button className="cta-btn danger" onClick={() => handleDeleteUser(t._id)}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -812,9 +962,182 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* POSTS TAB */}
+        {tab === "posts" && (
+          <div>
+            <h3 style={{ marginBottom: '20px', fontSize: '1.5rem' }}>📝 Blog Posts</h3>
+            {loading ? (
+              <p>Loading posts...</p>
+            ) : posts.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+                <h3>No posts yet</h3>
+                <p>Create your first blog post to get started.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '20px' }}>
+                {posts.map(post => (
+                  <div key={post._id} className="card" style={{ padding: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ margin: '0 0 10px 0', fontSize: '1.3rem' }}>{post.title}</h4>
+                        <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '0.9rem' }}>
+                          By {post.author?.name || 'Unknown'} • {new Date(post.createdAt).toLocaleDateString()}
+                        </p>
+                        <p style={{ margin: '0 0 10px 0', color: '#555' }}>
+                          {post.content?.substring(0, 150)}...
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {post.tags?.map((tag, idx) => (
+                            <span 
+                              key={idx}
+                              style={{
+                                padding: '4px 12px',
+                                background: '#e3f2fd',
+                                color: '#1976d2',
+                                borderRadius: '12px',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '20px' }}>
+                        <span 
+                          style={{
+                            padding: '6px 16px',
+                            borderRadius: '20px',
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            textAlign: 'center',
+                            background: post.status === 'approved' ? '#e8f5e9' : post.status === 'rejected' ? '#ffebee' : '#fff3e0',
+                            color: post.status === 'approved' ? '#2e7d32' : post.status === 'rejected' ? '#c62828' : '#f57c00'
+                          }}
+                        >
+                          {post.status === 'approved' ? '✓ Approved' : post.status === 'rejected' ? '✗ Rejected' : '⏳ Pending'}
+                        </span>
+                        {post.published && (
+                          <span 
+                            style={{
+                              padding: '6px 16px',
+                              borderRadius: '20px',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              textAlign: 'center',
+                              background: '#e8f5e9',
+                              color: '#2e7d32'
+                            }}
+                          >
+                            📢 Published
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e0e0e0' }}>
+                      <button 
+                        className="btn btn-primary"
+                        onClick={() => {
+                          // View post details
+                          window.open(`/blog/${post._id}`, '_blank');
+                        }}
+                        style={{ flex: 1 }}
+                      >
+                        View Post
+                      </button>
+                      {post.status === 'pending' && (
+                        <>
+                          <button 
+                            className="btn"
+                            onClick={async () => {
+                              try {
+                                // Call approve API
+                                const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/admin/posts/${post._id}/approve`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${localStorage.getItem('mm_admin_token')}`
+                                  }
+                                });
+                                if (response.ok) {
+                                  alert('Post approved successfully!');
+                                  loadPosts(); // Reload posts
+                                }
+                              } catch (err) {
+                                alert('Failed to approve post');
+                              }
+                            }}
+                            style={{ flex: 1, background: '#4caf50', color: 'white' }}
+                          >
+                            ✓ Approve
+                          </button>
+                          <button 
+                            className="btn"
+                            onClick={async () => {
+                              const reason = prompt('Reason for rejection (optional):');
+                              try {
+                                const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/admin/posts/${post._id}/reject`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${localStorage.getItem('mm_admin_token')}`
+                                  },
+                                  body: JSON.stringify({ reason })
+                                });
+                                if (response.ok) {
+                                  alert('Post rejected');
+                                  loadPosts(); // Reload posts
+                                }
+                              } catch (err) {
+                                alert('Failed to reject post');
+                              }
+                            }}
+                            style={{ flex: 1, background: '#f44336', color: 'white' }}
+                          >
+                            ✗ Reject
+                          </button>
+                        </>
+                      )}
+                      <button 
+                        className="btn btn-secondary"
+                        onClick={async () => {
+                          if (window.confirm('Are you sure you want to delete this post?')) {
+                            try {
+                              const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/admin/posts/${post._id}`, {
+                                method: 'DELETE',
+                                headers: {
+                                  'Authorization': `Bearer ${localStorage.getItem('mm_admin_token')}`
+                                }
+                              });
+                              if (response.ok) {
+                                alert('Post deleted successfully!');
+                                loadPosts(); // Reload posts
+                              }
+                            } catch (err) {
+                              alert('Failed to delete post');
+                            }
+                          }
+                        }}
+                        style={{ background: '#757575', color: 'white' }}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ORDERS TAB */}
         {tab === "orders" && (
-          <OrdersManagement />
+          <OrderManagement 
+            orders={orders}
+            products={products}
+            loading={loading}
+            onStatusUpdate={handleOrderStatusUpdate}
+          />
         )}
       </div>
 
@@ -905,6 +1228,8 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

@@ -17,6 +17,11 @@ const postSchema = new mongoose.Schema(
     rejectionReason: { type: String, default: '' },
     // Social
     likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // Author information (cached for performance)
+    authorInfo: {
+      name: { type: String, default: 'Anonymous' },
+      profilePicture: { type: String, default: '' }
+    },
     comments: [
       {
         author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },

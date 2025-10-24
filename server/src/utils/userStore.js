@@ -18,13 +18,30 @@ export async function findByEmail(email) {
   return memoryStore.get(email) || null;
 }
 
-export async function createUser({ name, email, passwordHash, age }) {
+export async function createUser({ name, email, passwordHash, age, userType, license, isApproved, isActive }) {
   if (isDbConnected()) {
-    const user = await User.create({ name, email, passwordHash, age });
+    const user = await User.create({ 
+      name, 
+      email, 
+      passwordHash, 
+      age,
+      userType: userType || 'user',
+      ...(userType === 'therapist' && { license, isApproved: false, isActive: false })
+    });
     return user;
   }
   // In-memory create
-  const user = { _id: randomUUID(), name, email, passwordHash, age, resetPasswordTokenHash: null, resetPasswordExpires: null };
+  const user = { 
+    _id: randomUUID(), 
+    name, 
+    email, 
+    passwordHash, 
+    age,
+    userType: userType || 'user',
+    ...(userType === 'therapist' && { license, isApproved: false, isActive: false }),
+    resetPasswordTokenHash: null, 
+    resetPasswordExpires: null 
+  };
   memoryStore.set(email, user);
   return user;
 }

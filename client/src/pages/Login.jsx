@@ -56,6 +56,12 @@ export default function Login() {
       
       // Check if this is a success response with user data
       if (response?.user) {
+        // If therapist and not approved, block login and show message
+        if (response.user?.userType === "therapist" && response.user?.isApproved === false) {
+          setError("Your therapist account is pending admin approval. Please try again later.");
+          return;
+        }
+
         const sessionUser = { ...response.user, authSource: "api" };
         localStorage.setItem("mm_user", JSON.stringify(sessionUser));
 

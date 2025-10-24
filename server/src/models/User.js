@@ -67,6 +67,30 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Additional fields for therapists
+    specialization: {
+      type: String,
+      trim: true,
+    },
+
+    bio: {
+      type: String,
+      trim: true,
+    },
+
+    rating: {
+      type: Number,
+      min: 0,
+      max: 5,
+      default: 0
+    },
+
+    experience: {
+      type: Number,
+      min: 0,
+      default: 0
+    }
   },
   { timestamps: true }
 );

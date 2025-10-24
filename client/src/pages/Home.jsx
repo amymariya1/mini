@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate, Link, Navigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import SupportChatbot from "../components/SupportChatbot";
 import NotificationBanner from "../components/NotificationBanner";
@@ -1549,9 +1549,11 @@ function Legend({ color, label }) {
 }
 
 export default function Home() {
-  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const [user, setUser] = useState(null); // Start with null to indicate loading
   const [activeTab, setActiveTab] = useState(null); // null, 'shopping', or 'blog'
+  const chatbotRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
   
   // Cached assessment result and personalized tips for hero section
   const savedAssessment = useMemo(() => {
@@ -1612,27 +1614,29 @@ export default function Home() {
       "Regular meals; hydrate; limit caffeine after noon.",
     ],
   }), []);
-  
+
+  // Load user data from localStorage and handle redirection
   useEffect(() => {
     try {
       const raw = localStorage.getItem("mm_user");
-      if (raw) setUser(JSON.parse(raw));
-    } catch (_) {}
-  }, []);
-
-  // Sidebar state for mobile toggle
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 900px)');
-    const onChange = (e) => {
-      setIsMobile(e.matches);
-      setSidebarOpen(!e.matches);
-    };
-    onChange(mq);
-    try { mq.addEventListener('change', onChange); } catch { mq.addListener(onChange); }
-    return () => { try { mq.removeEventListener('change', onChange); } catch { mq.removeListener(onChange); } };
-  }, []);
+      const userData = raw ? JSON.parse(raw) : {};
+      setUser(userData);
+      
+      // If user is a therapist, redirect immediately
+      if (userData?.userType === 'therapist') {
+        navigate('/therapist-dashboard', { replace: true });
+      }
+    } catch (_) {
+      setUser({});
+    } finally {
+      setIsLoading(false);
+    }
+  }, [navigate]);
+  
+  // Show nothing while loading or if user is a therapist
+  if (isLoading || user?.userType === 'therapist') {
+    return null;
+  }
 
   // Get the highest severity level for personalized greeting
   const getGreetingMessage = () => {
@@ -1659,67 +1663,7 @@ export default function Home() {
       <Navbar />
       <NotificationBanner />
       <div className="app-container">
-        {/* Sidebar */}
-        <aside className="sidebar" style={{
-          position: 'fixed', top: 64, left: 0, bottom: 0, width: sidebarOpen ? 240 : 0,
-          background: '#ffffff', borderRight: '1px solid #e5e7eb',
-          padding: sidebarOpen ? '16px' : '16px 0', zIndex: 10,
-          overflow: 'hidden', transition: 'width 200ms ease'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#475569' }}>Menu</div>
-            {isMobile && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setSidebarOpen(v=>!v)}>Toggle</button>
-            )}
-          </div>
-          <nav style={{ display: 'grid', gap: 8 }}>
-            <button 
-              className="btn btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}
-              onClick={() => navigate('/shopping')}
-            >
-              <span>🛍️</span>
-              <span>Shopping</span>
-            </button>
-            <button 
-              className="btn btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}
-              onClick={() => navigate('/blog')}
-            >
-              <span>📝</span>
-              <span>Blog</span>
-            </button>
-            <button 
-              className="btn btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', backgroundColor: '#f8f9fa', borderColor: '#e9ecef' }}
-              onClick={() => navigate('/therapists')}
-            >
-              <span>👩‍⚕️</span>
-              <span>Book Therapist</span>
-            </button>
-          </nav>
-        </aside>
-        
-        {/* Greeting (offset for sidebar) */}
-        <div style={{ padding: '12px 24px', marginLeft: sidebarOpen ? 260 : 20 }}>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: '1.5rem',
-              fontWeight: 700,
-              textAlign: 'center',
-              background: '#ffffff',
-              color: '#000000',
-              padding: '10px 14px',
-              borderRadius: 8,
-              border: '1px solid #e9ecef'
-            }}
-          >
-            {user?.name ? `Hello, ${user.name}` : 'Welcome back'}
-          </h2>
-        </div>
-
-        <main className="calm-main" style={{ marginLeft: sidebarOpen ? 260 : 20, padding: '24px' }}>
+        <main className="calm-main" style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
           {/* Tab Navigation */}
           {activeTab && (
             <div style={{ marginBottom: '20px' }}>
@@ -1756,9 +1700,379 @@ export default function Home() {
           {/* Main Home Content (only shown when no tab is active) */}
           {!activeTab && (
             <>
+              {/* Welcome Hero Section */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                style={{
+                  borderRadius: '20px',
+                  padding: '60px 40px',
+                  marginBottom: '40px',
+                  color: 'white',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  boxShadow: '0 20px 60px rgba(102, 126, 234, 0.3)',
+                  minHeight: '400px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {/* Background Image */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundImage: 'url(https://images.pexels.com/photos/236151/pexels-photo-236151.jpeg)',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  filter: 'brightness(0.6)'
+                }} />
+                
+                {/* Dark overlay for text readability */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0, 0, 0, 0.4)'
+                }} />
+                
+                <motion.div
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 180, 360]
+                  }}
+                  transition={{
+                    duration: 20,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '-50px',
+                    right: '-50px',
+                    width: '200px',
+                    height: '200px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '50%',
+                    filter: 'blur(40px)'
+                  }}
+                />
+                
+                <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
+                  <motion.h1
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.6 }}
+                    style={{
+                      fontSize: '3rem',
+                      fontWeight: 800,
+                      marginBottom: '20px',
+                      textShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {user?.name ? `Welcome back, ${user.name}! 👋` : 'Welcome to MindMirror 🧠'}
+                  </motion.h1>
+                  
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4, duration: 0.6 }}
+                    style={{
+                      fontSize: '1.25rem',
+                      lineHeight: '1.8',
+                      maxWidth: '800px',
+                      margin: '0 auto 30px',
+                      opacity: 0.95
+                    }}
+                  >
+                    Your comprehensive mental health companion. MindMirror helps you understand, track, and improve your mental well-being through evidence-based assessments, personalized insights, and professional support.
+                  </motion.p>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6, duration: 0.6 }}
+                    style={{
+                      display: 'flex',
+                      gap: '20px',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      marginTop: '30px'
+                    }}
+                  >
+                    <motion.div
+                      whileHover={{ scale: 1.05, y: -3 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => chatbotRef.current?.openChat()}
+                      style={{
+                        background: 'white',
+                        padding: '20px 40px',
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '15px'
+                      }}
+                    >
+                      <motion.div
+                        animate={{ 
+                          rotate: [0, 10, -10, 0],
+                          scale: [1, 1.1, 1]
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                        style={{ fontSize: '2.5rem' }}
+                      >
+                        💬
+                      </motion.div>
+                      <div style={{ textAlign: 'left' }}>
+                        <div style={{ 
+                          fontSize: '1.3rem', 
+                          fontWeight: 800, 
+                          color: '#667eea',
+                          marginBottom: '5px'
+                        }}>
+                          AI Support Chatbot
+                        </div>
+                        <div style={{ 
+                          fontSize: '0.95rem', 
+                          color: '#64748b'
+                        }}>
+                          Get instant support 24/7
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                </div>
+              </motion.section>
+
+              {/* More Services Section */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.6 }}
+                style={{ marginBottom: '50px' }}
+              >
+                <h2 style={{
+                  fontSize: '2.5rem',
+                  fontWeight: 800,
+                  textAlign: 'center',
+                  marginBottom: '40px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
+                  More Services
+                </h2>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                  gap: '30px',
+                  marginBottom: '50px'
+                }}>
+                  {/* Blog Card */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4, duration: 0.5 }}
+                    whileHover={{ y: -10, boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
+                    onClick={() => navigate('/blog')}
+                    style={{
+                      borderRadius: '20px',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      boxShadow: '0 10px 30px rgba(240, 147, 251, 0.3)',
+                      transition: 'all 0.3s ease',
+                      height: '400px'
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundImage: 'url(https://images.pexels.com/photos/236151/pexels-photo-236151.jpeg)',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      filter: 'brightness(0.6)'
+                    }} />
+                    
+                    
+                    <div style={{ position: 'relative', zIndex: 2, padding: '40px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                      <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📝</div>
+                      <h3 style={{ fontSize: '1.8rem', fontWeight: 700, color: 'white', marginBottom: '15px' }}>
+                        Mental Health Blog
+                      </h3>
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: '1.1rem', lineHeight: '1.6', marginBottom: '25px' }}>
+                        Read expert articles, personal stories, and evidence-based tips for mental wellness. Share your journey and connect with others.
+                      </p>
+                      <motion.div
+                        whileHover={{ x: 5 }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '1.1rem'
+                        }}
+                      >
+                        Explore Blog <span>→</span>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+
+                  {/* Book Therapist Card */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5, duration: 0.5 }}
+                    whileHover={{ y: -10, boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
+                    onClick={() => navigate('/appointments')}
+                    style={{
+                      borderRadius: '20px',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      boxShadow: '0 10px 30px rgba(79, 172, 254, 0.3)',
+                      transition: 'all 0.3s ease',
+                      height: '400px'
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundImage: 'url(https://images.pexels.com/photos/7176026/pexels-photo-7176026.jpeg)',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      filter: 'brightness(0.6)'
+                    }} />
+                    
+                    
+                    <div style={{ position: 'relative', zIndex: 2, padding: '40px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                      <div style={{ fontSize: '4rem', marginBottom: '20px' }}>👩‍⚕️</div>
+                      <h3 style={{ fontSize: '1.8rem', fontWeight: 700, color: 'white', marginBottom: '15px' }}>
+                        Book a Therapist
+                      </h3>
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: '1.1rem', lineHeight: '1.6', marginBottom: '25px' }}>
+                        Connect with licensed mental health professionals. Schedule sessions, chat securely, and get the support you deserve.
+                      </p>
+                      <motion.div
+                        whileHover={{ x: 5 }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '1.1rem'
+                        }}
+                      >
+                        Find Therapist →
+                      </motion.div>
+                    </div>
+                  </motion.div>
+
+                  {/* Shopping Card */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.6, duration: 0.5 }}
+                    whileHover={{ y: -10, boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
+                    onClick={() => navigate('/shopping')}
+                    style={{
+                      borderRadius: '20px',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      boxShadow: '0 10px 30px rgba(67, 233, 123, 0.3)',
+                      transition: 'all 0.3s ease',
+                      height: '400px'
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundImage: 'url(https://images.pexels.com/photos/3822621/pexels-photo-3822621.jpeg)',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      filter: 'brightness(0.6)'
+                    }} />
+                    
+                    
+                    <div style={{ position: 'relative', zIndex: 2, padding: '40px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                      <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🛍️</div>
+                      <h3 style={{ fontSize: '1.8rem', fontWeight: 700, color: 'white', marginBottom: '15px' }}>
+                        Wellness Shop
+                      </h3>
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: '1.1rem', lineHeight: '1.6', marginBottom: '25px' }}>
+                        Discover curated products for mental wellness. From meditation tools to self-care essentials, find what helps you thrive.
+                      </p>
+                      <motion.div
+                        whileHover={{ x: 5 }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '1.1rem'
+                        }}
+                      >
+                        Browse Shop →
+                      </motion.div>
+                    </div>
+                  </motion.div>
+
+
+                </div>
+              </motion.section>
+
               {/* Enhanced Hero Section with Motion Design */}
               <section style={{ padding: '60px 24px', backgroundColor: '#ffffff' }}>
                 <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
+                  <h2 style={{
+                    fontSize: '2.5rem',
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    marginBottom: '20px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}>
+                    Understanding Mental Health
+                  </h2>
+                  <p style={{
+                    fontSize: '1.1rem',
+                    color: '#64748b',
+                    marginBottom: '40px',
+                    maxWidth: '700px',
+                    margin: '0 auto 40px'
+                  }}>
+                    Learn about common mental health conditions and take the first step toward better well-being
+                  </p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', marginTop: '0px' }}>
                     {/* Card 1 - Depression */}
                     <motion.div 
@@ -1779,29 +2093,40 @@ export default function Home() {
                         overflow: 'hidden',
                         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
                       }}
-                      onClick={() => navigate('/assessments')}
+                      onClick={() => navigate('/depression-detail')}
                     >
                       <div style={{ 
-                        height: '160px', 
-                        backgroundColor: '#e0f2fe', 
+                        height: '200px', 
                         position: 'relative',
                         overflow: 'hidden',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        <motion.div
-                          whileHover={{ y: -5 }}
-                          transition={{ type: 'spring', stiffness: 300 }}
-                          style={{
-                            width: '100px',
-                            height: '100px',
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='40' r='20' fill='%237dd3fc'/%3E%3Cpath d='M30,70 Q50,90 70,70' stroke='%237dd3fc' stroke-width='3' fill='none'/%3E%3Ccircle cx='40' cy='35' r='3' fill='%230ea5e9'/%3E%3Ccircle cx='60' cy='35' r='3' fill='%230ea5e9'/%3E%3Cpath d='M40,50 Q50,55 60,50' stroke='%230ea5e9' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
-                            backgroundSize: 'contain',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center'
-                          }}
-                        />
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundImage: 'url(https://images.pexels.com/photos/4021775/pexels-photo-4021775.jpeg)',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          filter: 'brightness(0.7)'
+                        }} />
+                        <div style={{
+                          position: 'relative',
+                          zIndex: 2,
+                          background: 'rgba(14, 165, 233, 0.9)',
+                          padding: '12px 24px',
+                          borderRadius: '8px',
+                          color: 'white',
+                          fontSize: '1.5rem',
+                          fontWeight: 700,
+                          backdropFilter: 'blur(10px)'
+                        }}>
+                          Depression
+                        </div>
                       </div>
                       <div style={{ padding: '20px' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#0c4a6e', marginBottom: '12px' }}>Depression</h3>
@@ -1828,7 +2153,7 @@ export default function Home() {
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate('/assessments');
+                            navigate('/depression-detail');
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e0f2fe'}
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f0f9ff'}
@@ -1875,29 +2200,40 @@ export default function Home() {
                         overflow: 'hidden',
                         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
                       }}
-                      onClick={() => navigate('/assessments')}
+                      onClick={() => navigate('/anxiety-detail')}
                     >
                       <div style={{ 
-                        height: '160px', 
-                        backgroundColor: '#fef3c7', 
+                        height: '200px', 
                         position: 'relative',
                         overflow: 'hidden',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        <motion.div
-                          whileHover={{ y: -5 }}
-                          transition={{ type: 'spring', stiffness: 300 }}
-                          style={{
-                            width: '100px',
-                            height: '100px',
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='40' r='20' fill='%23fde68a'/%3E%3Cpath d='M30,70 Q50,85 70,70' stroke='%23fde68a' stroke-width='3' fill='none'/%3E%3Ccircle cx='40' cy='35' r='3' fill='%23f59e0b'/%3E%3Ccircle cx='60' cy='35' r='3' fill='%23f59e0b'/%3E%3Cpath d='M45,55 Q50,50 55,55' stroke='%23f59e0b' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
-                            backgroundSize: 'contain',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center'
-                          }}
-                        />
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundImage: 'url(https://images.pexels.com/photos/3807738/pexels-photo-3807738.jpeg)',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          filter: 'brightness(0.7)'
+                        }} />
+                        <div style={{
+                          position: 'relative',
+                          zIndex: 2,
+                          background: 'rgba(245, 158, 11, 0.9)',
+                          padding: '12px 24px',
+                          borderRadius: '8px',
+                          color: 'white',
+                          fontSize: '1.5rem',
+                          fontWeight: 700,
+                          backdropFilter: 'blur(10px)'
+                        }}>
+                          Anxiety
+                        </div>
                       </div>
                       <div style={{ padding: '20px' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#92400e', marginBottom: '12px' }}>Anxiety</h3>
@@ -1924,7 +2260,7 @@ export default function Home() {
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate('/assessments');
+                            navigate('/anxiety-detail');
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef3c7'}
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fffbeb'}
@@ -1971,29 +2307,40 @@ export default function Home() {
                         overflow: 'hidden',
                         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
                       }}
-                      onClick={() => navigate('/assessments')}
+                      onClick={() => navigate('/stress-detail')}
                     >
                       <div style={{ 
-                        height: '160px', 
-                        backgroundColor: '#fce7f3', 
+                        height: '200px', 
                         position: 'relative',
                         overflow: 'hidden',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        <motion.div
-                          whileHover={{ y: -5 }}
-                          transition={{ type: 'spring', stiffness: 300 }}
-                          style={{
-                            width: '100px',
-                            height: '100px',
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='40' r='20' fill='%23f9a8d4'/%3E%3Cpath d='M30,70 Q50,80 70,70' stroke='%23f9a8d4' stroke-width='3' fill='none'/%3E%3Ccircle cx='40' cy='35' r='3' fill='%23ec4899'/%3E%3Ccircle cx='60' cy='35' r='3' fill='%23ec4899'/%3E%3Cpath d='M40,55 Q50,60 60,55' stroke='%23ec4899' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
-                            backgroundSize: 'contain',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center'
-                          }}
-                        />
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundImage: 'url(https://images.pexels.com/photos/4101143/pexels-photo-4101143.jpeg)',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          filter: 'brightness(0.7)'
+                        }} />
+                        <div style={{
+                          position: 'relative',
+                          zIndex: 2,
+                          background: 'rgba(236, 72, 153, 0.9)',
+                          padding: '12px 24px',
+                          borderRadius: '8px',
+                          color: 'white',
+                          fontSize: '1.5rem',
+                          fontWeight: 700,
+                          backdropFilter: 'blur(10px)'
+                        }}>
+                          Stress
+                        </div>
                       </div>
                       <div style={{ padding: '20px' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#831843', marginBottom: '12px' }}>Stress</h3>
@@ -2020,7 +2367,7 @@ export default function Home() {
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate('/assessments');
+                            navigate('/stress-detail');
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fce7f3'}
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fdf2f8'}
@@ -2053,7 +2400,7 @@ export default function Home() {
             </>
           )}
         </main>
-        <SupportChatbot />
+        <SupportChatbot ref={chatbotRef} />
       </div>
     </div>
   );
