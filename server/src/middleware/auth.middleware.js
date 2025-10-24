@@ -1,5 +1,49 @@
+import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
+
+// JWT Authentication middleware
+export async function authenticateJWT(req, res, next) {
+  try {
+    let token;
+
+    // Check for token in Authorization header
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    // If no token found, return error
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
+      });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Find user by ID from token
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. Invalid token.'
+      });
+    }
+
+    // Attach user to request object
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error('JWT Authentication error:', err);
+    return res.status(401).json({
+      success: false,
+      message: 'Access denied. Invalid token.'
+    });
+  }
+}
 
 // Restrict middleware - ensures user has specific role
 export function restrictTo(...roles) {
@@ -22,7 +66,7 @@ export function restrictTo(...roles) {
   };
 }
 
-// Protect middleware - ensures user is authenticated
+// Protect middleware - ensures user is authenticated (keeping the original for backward compatibility)
 export async function protect(req, res, next) {
   try {
     // Get user info from headers (same pattern as other routes)

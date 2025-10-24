@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { findByEmail, createUser, setUserResetToken, findByResetTokenHash, clearUserResetToken } from '../utils/userStore.js';
@@ -8,6 +9,13 @@ import { sendResetEmail, sendWelcomeEmail } from '../utils/mailer.js'; // Import
 // Utils
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Generate JWT token
+function generateToken(userId) {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '30d'
+  });
 }
 
 export async function register(req, res) {
@@ -61,6 +69,9 @@ export async function register(req, res) {
 
     const user = await createUser(userData);
     
+    // Generate JWT token
+    const token = generateToken(user._id);
+    
     // Send welcome email
     try {
       await sendWelcomeEmail(user.email, {
@@ -79,6 +90,7 @@ export async function register(req, res) {
       : 'Registered successfully';
     
     return res.status(201).json({
+      token,
       user: { 
         id: user._id, 
         name: user.name, 
@@ -121,8 +133,12 @@ export async function login(req, res) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Generate JWT token
+    const token = generateToken(user._id);
+
     // Include userType, age, and approval status in response
     return res.json({ 
+      token,
       user: { 
         id: user._id, 
         name: user.name, 
