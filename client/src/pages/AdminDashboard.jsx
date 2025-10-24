@@ -20,6 +20,7 @@ import {
 } from "../services/api";
 import { motion } from "framer-motion";
 import { useTheme } from "../context/ThemeContext";
+import { useNavigate } from "react-router-dom";
 import "../styles/AdminDashboard.css";
 
 // Add the import for the new OrderManagement component
@@ -97,6 +98,7 @@ const NAV_ITEMS = [
 ];
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const { isDarkMode, colors } = useTheme();
   const [tab, setTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
@@ -123,7 +125,14 @@ export default function AdminDashboard() {
   const [therapistAge, setTherapistAge] = useState("");
   const [therapistLicense, setTherapistLicense] = useState("");
 
-
+  // Check if admin is logged in when component mounts
+  useEffect(() => {
+    const adminToken = localStorage.getItem("mm_admin_token");
+    if (!adminToken) {
+      // Redirect to admin login if no token found
+      navigate("/admin/login");
+    }
+  }, [navigate]);
 
   async function loadUsers() {
     setLoading(true);
