@@ -15,8 +15,19 @@ const __dirname = path.dirname(__filename);
 // Initialize Express app
 const app = express();
 
-// Enable CORS for all routes
-app.use(cors());
+// Enable CORS for all routes with specific configuration for Render frontend
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5002',
+    'https://mini-iota-one.vercel.app',
+    /\.onrender\.com$/, // This will match any Render subdomain
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 // Built-in middleware for parsing JSON
 app.use(express.json({ limit: "10mb" }));
