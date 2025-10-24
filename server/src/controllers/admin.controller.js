@@ -12,6 +12,12 @@ import Question from '../models/Question.js';
 const ADMIN_SECRET = process.env.ADMIN_TOKEN_SECRET || '';
 const sessionTokens = new Map(); // token -> adminId (fallback only)
 
+// Warn if ADMIN_SECRET is not set (important for serverless environments)
+if (!ADMIN_SECRET) {
+  console.warn('⚠️  WARNING: ADMIN_TOKEN_SECRET not set. Admin tokens will use in-memory storage which does not work in serverless environments.');
+  console.warn('⚠️  Please set ADMIN_TOKEN_SECRET environment variable for proper admin token functionality.');
+}
+
 function base64url(input) {
   return Buffer.from(JSON.stringify(input))
     .toString('base64')
