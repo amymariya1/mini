@@ -857,3 +857,306 @@ The ${appName} Admin Team
     throw error;
   }
 }
+
+// Function to send patient referral emails
+export async function sendPatientReferralEmail(to, referralDetails) {
+  const appName = process.env.APP_NAME || 'MindMirror';
+  const from = process.env.MAIL_FROM || 'amymariya4@gmail.com'; // Use the specified admin email
+
+  const subject = `${appName} - Patient Referral Notification`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; }
+        .section { margin-bottom: 25px; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; color: #666; font-size: 14px; }
+        .detail-box { background: #f8f9ff; padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .detail-label { font-weight: bold; color: #555; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0; font-size: 32px;">🏥 New Patient Referral</h1>
+          <p style="margin: 15px 0 0 0; font-size: 18px; opacity: 0.95;">You've been referred to ${appName} for mental health support</p>
+        </div>
+        
+        <div class="content">
+          <p style="font-size: 16px; margin-bottom: 20px;">Dear ${referralDetails.patientName},</p>
+          <p>We're pleased to inform you that ${referralDetails.referringProfessional} has referred you to ${appName} for mental health support. Our team is committed to providing you with the care and support you need on your wellness journey.</p>
+          
+          <div class="section">
+            <h3 style="color: #667eea; margin-bottom: 15px;">📋 Referral Details</h3>
+            
+            <div class="detail-box">
+              <span class="detail-label">Referred By:</span> ${referralDetails.referringProfessional}
+            </div>
+            
+            <div class="detail-box">
+              <span class="detail-label">Reason for Referral:</span> ${referralDetails.reason}
+            </div>
+            
+            ${referralDetails.additionalInfo ? `
+            <div class="detail-box">
+              <span class="detail-label">Additional Information:</span> ${referralDetails.additionalInfo}
+            </div>
+            ` : ''}
+          </div>
+          
+          <div class="section">
+            <h3 style="color: #667eea; margin-bottom: 15px;">✨ What to Expect</h3>
+            
+            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 10px 0;">
+              <strong>1. 📞 Initial Contact</strong>
+              <p style="margin: 5px 0 0 0;">Our team will reach out to you within 24 hours to discuss your needs and schedule an initial consultation.</p>
+            </div>
+            
+            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 10px 0;">
+              <strong>2. 👩‍⚕️ Matching with a Therapist</strong>
+              <p style="margin: 5px 0 0 0;">We'll match you with a licensed therapist who specializes in your area of concern.</p>
+            </div>
+            
+            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 10px 0;">
+              <strong>3. 📅 Scheduling</strong>
+              <p style="margin: 5px 0 0 0;">You'll be able to schedule sessions at times that work best for your schedule.</p>
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.APP_URL || 'http://localhost:3000'}/register" style="display: inline-block; padding: 14px 32px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px;">Create Your Account</a>
+            <a href="${process.env.APP_URL || 'http://localhost:3000'}/contact" style="display: inline-block; padding: 14px 32px; background: #f1f5f9; color: #334155; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px;">Contact Us</a>
+          </div>
+          
+          <div style="background: #e8f5e9; padding: 15px; border-left: 4px solid #4ade80; margin: 20px 0; border-radius: 5px;">
+            <strong>💚 Your Privacy Matters</strong>
+            <p style="margin: 10px 0 0 0;">All communications and sessions are confidential and encrypted. Your mental health journey is safe with us.</p>
+          </div>
+          
+          <p style="margin-top: 25px;">We look forward to supporting you on your path to wellness.</p>
+        </div>
+        
+        <div class="footer">
+          <p style="margin: 0 0 10px 0;"><strong>Best regards,</strong></p>
+          <p style="margin: 0;">The ${appName} Team</p>
+          <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">Need help? Contact us at support@mindmirror.com</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+New Patient Referral
+
+Dear ${referralDetails.patientName},
+
+We're pleased to inform you that ${referralDetails.referringProfessional} has referred you to ${appName} for mental health support. Our team is committed to providing you with the care and support you need on your wellness journey.
+
+Referral Details:
+Referred By: ${referralDetails.referringProfessional}
+Reason for Referral: ${referralDetails.reason}
+${referralDetails.additionalInfo ? `Additional Information: ${referralDetails.additionalInfo}\n` : ''}
+
+What to Expect:
+1. Initial Contact: Our team will reach out to you within 24 hours
+2. Matching with a Therapist: We'll match you with a licensed specialist
+3. Scheduling: You'll be able to schedule sessions at your convenience
+
+Create your account: ${process.env.APP_URL || 'http://localhost:3000'}/register
+Contact us: ${process.env.APP_URL || 'http://localhost:3000'}/contact
+
+Your Privacy Matters: All communications are confidential and encrypted.
+
+We look forward to supporting you on your path to wellness.
+
+Best regards,
+The ${appName} Team
+  `;
+
+  console.log(`Mailer: Attempting to send patient referral email to ${to}`);
+  
+  try {
+    const transporter = await transporterPromise;
+    const info = await transporter.sendMail({ from, to, subject, text, html });
+    console.log(`Mailer: Patient referral email sent successfully to ${to}. Message ID: ${info.messageId}`);
+
+    const previewUrl = nodemailer.getTestMessageUrl?.(info);
+    if (previewUrl) {
+      console.log('Ethereal preview URL:', previewUrl);
+    }
+    
+    return info;
+  } catch (error) {
+    console.error(`Mailer: Failed to send patient referral email to ${to}. Error:`, error.message);
+    throw error;
+  }
+}
+
+// Function to send appointment invoice email
+export async function sendAppointmentInvoiceEmail(to, invoiceDetails) {
+  const appName = process.env.APP_NAME || 'MindMirror';
+  const from = process.env.MAIL_FROM || 'amymariya4@gmail.com'; // Use the specified admin email
+
+  const subject = `${appName} - Appointment Invoice #${invoiceDetails.invoiceId}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; }
+        .section { margin-bottom: 25px; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; color: #666; font-size: 14px; }
+        .detail-box { background: #f8f9ff; padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .detail-label { font-weight: bold; color: #555; }
+        .invoice-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .invoice-table th, .invoice-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .invoice-table th { background-color: #f2f2f2; }
+        .total-row { font-weight: bold; }
+        .paid-badge { background-color: #4ade80; color: white; padding: 5px 10px; border-radius: 20px; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0; font-size: 32px;">🧾 Appointment Invoice</h1>
+          <p style="margin: 15px 0 0 0; font-size: 18px; opacity: 0.95;">Thank you for your payment</p>
+        </div>
+        
+        <div class="content">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+              <h2 style="margin: 0; color: #667eea;">Invoice #${invoiceDetails.invoiceId}</h2>
+              <p style="margin: 5px 0 0 0; color: #666;">Date: ${new Date().toLocaleDateString()}</p>
+            </div>
+            <span class="paid-badge">PAID</span>
+          </div>
+          
+          <div class="section">
+            <h3 style="color: #667eea; margin-bottom: 15px;">Patient Information</h3>
+            <div class="detail-box">
+              <span class="detail-label">Name:</span> ${invoiceDetails.patientName}<br>
+              <span class="detail-label">Email:</span> ${invoiceDetails.patientEmail}
+            </div>
+          </div>
+          
+          <div class="section">
+            <h3 style="color: #667eea; margin-bottom: 15px;">Therapist Information</h3>
+            <div class="detail-box">
+              <span class="detail-label">Name:</span> ${invoiceDetails.therapistName}<br>
+              <span class="detail-label">Specialization:</span> ${invoiceDetails.therapistSpecialization}
+            </div>
+          </div>
+          
+          <div class="section">
+            <h3 style="color: #667eea; margin-bottom: 15px;">Appointment Details</h3>
+            <div class="detail-box">
+              <span class="detail-label">Date:</span> ${invoiceDetails.appointmentDate}<br>
+              <span class="detail-label">Time:</span> ${invoiceDetails.appointmentTime}<br>
+              <span class="detail-label">Duration:</span> 60 minutes
+            </div>
+          </div>
+          
+          <div class="section">
+            <h3 style="color: #667eea; margin-bottom: 15px;">Invoice Summary</h3>
+            <table class="invoice-table">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Therapy Session (60 minutes)</td>
+                  <td>₹${invoiceDetails.amount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td>Service Fee</td>
+                  <td>₹${(invoiceDetails.amount * 0.1).toFixed(2)}</td>
+                </tr>
+                <tr class="total-row">
+                  <td><strong>Total</strong></td>
+                  <td><strong>₹${(invoiceDetails.amount * 1.1).toFixed(2)}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div style="background: #e8f5e9; padding: 15px; border-left: 4px solid #4ade80; margin: 20px 0; border-radius: 5px;">
+            <strong>💚 Payment Confirmation</strong>
+            <p style="margin: 10px 0 0 0;">Your payment has been successfully processed. Your appointment is now confirmed.</p>
+          </div>
+          
+          <p style="margin-top: 25px;">If you have any questions about this invoice, please contact our support team.</p>
+          <p>We look forward to seeing you at your appointment!</p>
+        </div>
+        
+        <div class="footer">
+          <p style="margin: 0 0 10px 0;"><strong>Best regards,</strong></p>
+          <p style="margin: 0;">The ${appName} Team</p>
+          <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">Need help? Contact us at support@mindmirror.com</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Appointment Invoice #${invoiceDetails.invoiceId}
+
+Patient Information:
+Name: ${invoiceDetails.patientName}
+Email: ${invoiceDetails.patientEmail}
+
+Therapist Information:
+Name: ${invoiceDetails.therapistName}
+Specialization: ${invoiceDetails.therapistSpecialization}
+
+Appointment Details:
+Date: ${invoiceDetails.appointmentDate}
+Time: ${invoiceDetails.appointmentTime}
+Duration: 60 minutes
+
+Invoice Summary:
+Therapy Session (60 minutes): ₹${invoiceDetails.amount.toFixed(2)}
+Service Fee: ₹${(invoiceDetails.amount * 0.1).toFixed(2)}
+Total: ₹${(invoiceDetails.amount * 1.1).toFixed(2)}
+
+Payment Confirmation:
+Your payment has been successfully processed. Your appointment is now confirmed.
+
+If you have any questions about this invoice, please contact our support team.
+We look forward to seeing you at your appointment!
+
+Best regards,
+The ${appName} Team
+  `;
+
+  console.log(`Mailer: Attempting to send appointment invoice email to ${to}`);
+  
+  try {
+    const transporter = await transporterPromise;
+    const info = await transporter.sendMail({ from, to, subject, text, html });
+    console.log(`Mailer: Appointment invoice email sent successfully to ${to}. Message ID: ${info.messageId}`);
+
+    const previewUrl = nodemailer.getTestMessageUrl?.(info);
+    if (previewUrl) {
+      console.log('Ethereal preview URL:', previewUrl);
+    }
+    
+    return info;
+  } catch (error) {
+    console.error(`Mailer: Failed to send appointment invoice email to ${to}. Error:`, error.message);
+    throw error;
+  }
+}

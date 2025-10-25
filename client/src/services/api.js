@@ -792,6 +792,23 @@ export async function bookAppointment(appointmentData) {
   }
 }
 
+// New function for booking appointment with payment
+export async function bookAppointmentWithPayment(appointmentData) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request("/appointments/book-with-payment", {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(appointmentData)
+    });
+  } catch (error) {
+    console.error("Error booking appointment with payment:", error);
+    throw error;
+  }
+}
+
 export async function getUserAppointments() {
   try {
     const token = localStorage.getItem("mm_token");
@@ -958,12 +975,9 @@ export async function getMeditationCategories() {
 // Create a new patient
 export async function createPatient(patientData) {
   try {
-    const token = localStorage.getItem("mm_token");
     return await request("/patients", {
       method: "POST",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      },
+      headers: userHeaders(),
       body: JSON.stringify(patientData)
     });
   } catch (error) {
@@ -975,12 +989,9 @@ export async function createPatient(patientData) {
 // Get all patients for the current therapist
 export async function getPatients() {
   try {
-    const token = localStorage.getItem("mm_token");
     return await request("/patients", {
       method: "GET",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      }
+      headers: userHeaders(),
     });
   } catch (error) {
     console.error("Error getting patients:", error);
@@ -991,12 +1002,9 @@ export async function getPatients() {
 // Get a specific patient
 export async function getPatient(id) {
   try {
-    const token = localStorage.getItem("mm_token");
     return await request(`/patients/${id}`, {
       method: "GET",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      }
+      headers: userHeaders(),
     });
   } catch (error) {
     console.error("Error getting patient:", error);
@@ -1007,12 +1015,9 @@ export async function getPatient(id) {
 // Add a consultation note to a patient
 export async function addPatientNote(patientId, noteData) {
   try {
-    const token = localStorage.getItem("mm_token");
     return await request(`/patients/${patientId}/notes`, {
       method: "POST",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      },
+      headers: userHeaders(),
       body: JSON.stringify(noteData)
     });
   } catch (error) {
@@ -1024,16 +1029,83 @@ export async function addPatientNote(patientId, noteData) {
 // Update patient information
 export async function updatePatient(id, patientData) {
   try {
-    const token = localStorage.getItem("mm_token");
     return await request(`/patients/${id}`, {
       method: "PUT",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      },
+      headers: userHeaders(),
       body: JSON.stringify(patientData)
     });
   } catch (error) {
     console.error("Error updating patient:", error);
+    throw error;
+  }
+}
+
+// ==================== UPCOMING PATIENTS ====================
+
+// Create a new upcoming patient
+export async function createUpcomingPatient(upcomingPatientData) {
+  try {
+    return await request("/upcoming-patients", {
+      method: "POST",
+      headers: userHeaders(),
+      body: JSON.stringify(upcomingPatientData)
+    });
+  } catch (error) {
+    console.error("Error creating upcoming patient:", error);
+    throw error;
+  }
+}
+
+// Get all upcoming patients for the current therapist
+export async function getUpcomingPatients(params = {}) {
+  try {
+    const query = new URLSearchParams(params).toString();
+    return await request(`/upcoming-patients${query ? `?${query}` : ''}`, {
+      method: "GET",
+      headers: userHeaders(),
+    });
+  } catch (error) {
+    console.error("Error getting upcoming patients:", error);
+    throw error;
+  }
+}
+
+// Get a specific upcoming patient
+export async function getUpcomingPatient(id) {
+  try {
+    return await request(`/upcoming-patients/${id}`, {
+      method: "GET",
+      headers: userHeaders(),
+    });
+  } catch (error) {
+    console.error("Error getting upcoming patient:", error);
+    throw error;
+  }
+}
+
+// Update an upcoming patient
+export async function updateUpcomingPatient(id, upcomingPatientData) {
+  try {
+    return await request(`/upcoming-patients/${id}`, {
+      method: "PUT",
+      headers: userHeaders(),
+      body: JSON.stringify(upcomingPatientData)
+    });
+  } catch (error) {
+    console.error("Error updating upcoming patient:", error);
+    throw error;
+  }
+}
+
+// Delete an upcoming patient
+export async function deleteUpcomingPatient(id) {
+  try {
+    return await request(`/upcoming-patients/${id}`, {
+      method: "DELETE",
+      headers: userHeaders(),
+    });
+  } catch (error) {
+    console.error("Error deleting upcoming patient:", error);
     throw error;
   }
 }

@@ -5,6 +5,7 @@ import {
   getAvailabilityRange,
   getAvailableTimeSlots, // Add this import
   bookAppointment,
+  bookAppointmentWithPayment, // Add this import
   getUserAppointments,
   getTherapistAppointments,
   cancelAppointment
@@ -26,6 +27,9 @@ router.get("/available-time-slots", getAvailableTimeSlots); // Add this route
 
 // Book an appointment
 router.post("/book", bookAppointment);
+
+// Book an appointment with payment
+router.post("/book-with-payment", bookAppointmentWithPayment);
 
 // Get appointments for a user
 router.get("/user-appointments", getUserAppointments);

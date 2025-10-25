@@ -4,17 +4,21 @@ import {
   getPatients,
   getPatient,
   addConsultationNote,
-  updatePatient
+  updatePatient,
+  referPatient
 } from "../controllers/patient.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-// Apply authentication middleware to all routes
-router.use(protect);
-
 // Create a new patient
-router.post("/", createPatient);
+router.post("/", protect, createPatient);
+
+// Refer a patient (this should be public, so no authentication required)
+router.post("/refer", referPatient);
+
+// Apply authentication middleware to remaining routes
+router.use(protect);
 
 // Get all patients for the authenticated therapist
 router.get("/", getPatients);

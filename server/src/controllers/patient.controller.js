@@ -239,3 +239,71 @@ export async function updatePatient(req, res) {
     });
   }
 }
+
+// Handle patient referral and send email
+export async function referPatient(req, res) {
+  try {
+    const { 
+      patientName, 
+      patientEmail, 
+      patientPhone, 
+      referringProfessional, 
+      professionalEmail, 
+      reason, 
+      additionalInfo 
+    } = req.body;
+
+    // Validate required fields
+    if (!patientName || !patientEmail || !referringProfessional || !professionalEmail || !reason) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Patient name, email, referring professional, professional email, and reason are required" 
+      });
+    }
+
+    // Import the email function here to avoid circular dependencies
+    const { sendPatientReferralEmail } = await import('../utils/mailer.js');
+
+    // Prepare referral details for the email
+    const referralDetails = {
+      patientName,
+      patientEmail,
+      patientPhone: patientPhone || 'Not provided',
+      referringProfessional,
+      professionalEmail,
+      reason: getReasonLabel(reason),
+      additionalInfo: additionalInfo || 'None provided'
+    };
+
+    // Send referral email to the patient
+    await sendPatientReferralEmail(patientEmail, referralDetails);
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Patient referral submitted successfully. An email has been sent to the patient." 
+    });
+  } catch (error) {
+    console.error("Error processing patient referral:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to process patient referral. Please try again." 
+    });
+  }
+}
+
+// Helper function to get readable labels for referral reasons
+function getReasonLabel(reasonCode) {
+  const reasonMap = {
+    'anxiety': 'Anxiety Disorders',
+    'depression': 'Depression',
+    'ptsd': 'PTSD/Trauma',
+    'bipolar': 'Bipolar Disorder',
+    'ocd': 'OCD',
+    'stress': 'Stress Management',
+    'grief': 'Grief and Loss',
+    'relationship': 'Relationship Issues',
+    'other': 'Other'
+  };
+  
+  return reasonMap[reasonCode] || reasonCode;
+}

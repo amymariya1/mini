@@ -83,6 +83,7 @@ import meditationVideoRoutes from "./routes/meditationVideo.routes.js";
 import likeRoutes from "./routes/like.routes.js";
 import patientRoutes from "./routes/patient.routes.js";
 import therapistScheduleRoutes from "./routes/therapistSchedule.routes.js";
+import upcomingPatientRoutes from "./routes/upcomingPatient.routes.js";
 
 // Serve uploaded images (so /uploads/image.jpg works)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -112,6 +113,7 @@ app.use("/api/meditation-videos", meditationVideoRoutes);
 app.use("/api", likeRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/therapist-schedule", therapistScheduleRoutes);
+app.use("/api/upcoming-patients", upcomingPatientRoutes);
 
 // Health check endpoint
 app.get("/api/health", (_req, res) => {

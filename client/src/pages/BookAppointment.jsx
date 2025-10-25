@@ -5,11 +5,13 @@ import Navbar from '../components/Navbar';
 import { 
   listTherapists, 
   bookAppointment, 
+  bookAppointmentWithPayment, // Add this import
   getUserAppointments, 
   getAvailableTimeSlots, 
   sendMessage, 
   getChatHistory 
 } from '../services/api';
+import { displayRazorpay } from '../utils/razorpay'; // Add this import
 import { 
   FaCalendarAlt, 
   FaClock, 
@@ -158,34 +160,66 @@ export default function BookAppointment() {
     setError('');
 
     try {
-      const appointmentData = {
-        therapistId: selectedTherapist._id,
-        userId: user.id,
-        date: bookingData.date,
-        timeSlot: bookingData.time,
-        age: bookingData.age,
-        problem: bookingData.problem
+      // Process payment first
+      const amountInPaise = 100000; // ₹1000 in paise (you can make this dynamic based on therapist rates)
+      const customerName = user.name;
+      const customerEmail = user.email;
+      const customerPhone = user.phone || '';
+
+      const onPaymentSuccess = async (paymentResponse) => {
+        try {
+          const appointmentData = {
+            therapistId: selectedTherapist._id,
+            userId: user.id,
+            date: bookingData.date,
+            timeSlot: bookingData.time,
+            age: bookingData.age,
+            problem: bookingData.problem,
+            paymentId: paymentResponse.razorpay_payment_id,
+            amount: amountInPaise / 100 // Convert back to rupees
+          };
+
+          const response = await bookAppointmentWithPayment(appointmentData);
+          if (response.success) {
+            alert('Appointment booked successfully with payment!');
+            setShowBookingModal(false);
+            setBookingData({
+              date: '',
+              time: '',
+              age: '',
+              problem: ''
+            });
+            setAvailableTimeSlots([]); // Clear available time slots
+            fetchData(); // Refresh appointments
+          } else {
+            setError(response.message || 'Failed to book appointment');
+          }
+        } catch (err) {
+          console.error('Error booking appointment:', err);
+          setError('Failed to book appointment. Please try again.');
+        } finally {
+          setSubmitting(false);
+        }
       };
 
-      const response = await bookAppointment(appointmentData);
-      if (response.success) {
-        alert('Appointment booked successfully!');
-        setShowBookingModal(false);
-        setBookingData({
-          date: '',
-          time: '',
-          age: '',
-          problem: ''
-        });
-        setAvailableTimeSlots([]); // Clear available time slots
-        fetchData(); // Refresh appointments
-      } else {
-        setError(response.message || 'Failed to book appointment');
-      }
+      const onPaymentFailure = (response) => {
+        console.error('Payment failed:', response);
+        setError('Payment failed. Please try again.');
+        setSubmitting(false);
+      };
+
+      // Initiate Razorpay payment
+      await displayRazorpay(
+        amountInPaise,
+        customerName,
+        customerEmail,
+        customerPhone,
+        onPaymentSuccess,
+        onPaymentFailure
+      );
     } catch (err) {
-      console.error('Error booking appointment:', err);
-      setError('Failed to book appointment. Please try again.');
-    } finally {
+      console.error('Error processing payment:', err);
+      setError('Failed to process payment. Please try again.');
       setSubmitting(false);
     }
   };

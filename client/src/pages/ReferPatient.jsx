@@ -32,26 +32,40 @@ export default function ReferPatient() {
     setSubmitError("");
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // For now, we'll just show success message
-      setSubmitSuccess(true);
-      
-      // Reset form after 3 seconds
-      setTimeout(() => {
-        setSubmitSuccess(false);
-        setFormData({
-          patientName: "",
-          patientEmail: "",
-          patientPhone: "",
-          referringProfessional: "",
-          professionalEmail: "",
-          reason: "",
-          additionalInfo: ""
-        });
-      }, 3000);
+      // Make API call to submit the referral
+      const response = await fetch('/api/patients/refer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // Show success message
+        setSubmitSuccess(true);
+        
+        // Reset form after 3 seconds
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          setFormData({
+            patientName: "",
+            patientEmail: "",
+            patientPhone: "",
+            referringProfessional: "",
+            professionalEmail: "",
+            reason: "",
+            additionalInfo: ""
+          });
+        }, 3000);
+      } else {
+        // Handle error from server
+        setSubmitError(result.message || "An error occurred while submitting the referral. Please try again.");
+      }
     } catch (error) {
+      console.error("Error submitting referral:", error);
       setSubmitError("An error occurred while submitting the referral. Please try again.");
     } finally {
       setIsSubmitting(false);

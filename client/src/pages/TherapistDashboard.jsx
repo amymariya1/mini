@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { sendMessage, getChatHistory, getConversations, markMessageAsRead, getTherapistAppointments } from "../services/api";
+import { sendMessage, getChatHistory, getConversations, markMessageAsRead, getTherapistAppointments, getPatients, createPatient } from "../services/api";
 import TherapistTimeSlots from "./TherapistTimeSlots";
 import NewPatientForm from "../components/NewPatientForm";
+import SimplePatientForm from "../components/SimplePatientForm";
+import ConsultationReviewForm from "../components/ConsultationReviewForm";
+import ConsultationHistory from "../components/ConsultationHistory";
 
 export default function TherapistDashboard() {
   const navigate = useNavigate();
@@ -22,10 +25,23 @@ export default function TherapistDashboard() {
 
   // New patient form state
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
+  const [showSimplePatientForm, setShowSimplePatientForm] = useState(false);
+
+  // Consultation review form state
+  const [showConsultationReviewForm, setShowConsultationReviewForm] = useState(false);
+  const [selectedPatientForReview, setSelectedPatientForReview] = useState(null);
+
+  // Consultation history state
+  const [showConsultationHistory, setShowConsultationHistory] = useState(false);
+  const [selectedPatientForHistory, setSelectedPatientForHistory] = useState(null);
 
   // Appointments state
   const [appointments, setAppointments] = useState([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+
+  // Patient list states
+  const [patientsList, setPatientsList] = useState([]);
+  const [patientsLoading, setPatientsLoading] = useState(false);
 
   useEffect(() => {
     // Try to get user from localStorage
@@ -52,6 +68,13 @@ export default function TherapistDashboard() {
   useEffect(() => {
     if (activeTab === "upcoming" && user) {
       loadAppointments();
+    }
+  }, [activeTab, user]);
+
+  // Load patients when patient list tab is active
+  useEffect(() => {
+    if (activeTab === "patientList" && user) {
+      loadPatients();
     }
   }, [activeTab, user]);
 
@@ -100,13 +123,31 @@ export default function TherapistDashboard() {
       setAppointmentsLoading(true);
       const response = await getTherapistAppointments(user.id);
       if (response.success) {
-        setAppointments(response.data);
+        // Filter appointments to only show those with paymentId (paid appointments)
+        const paidAppointments = response.data.filter(appointment => appointment.paymentId);
+        setAppointments(paidAppointments);
       }
     } catch (error) {
       console.error("Error loading appointments:", error);
       setAppointments([]);
     } finally {
       setAppointmentsLoading(false);
+    }
+  };
+
+  const loadPatients = async () => {
+    if (!user) return;
+    try {
+      setPatientsLoading(true);
+      const response = await getPatients();
+      if (response.success) {
+        setPatientsList(response.data);
+      }
+    } catch (error) {
+      console.error("Error loading patients:", error);
+      setPatientsList([]);
+    } finally {
+      setPatientsLoading(false);
     }
   };
 
@@ -178,7 +219,64 @@ export default function TherapistDashboard() {
   const handleNewPatientSubmit = (formData) => {
     // Refresh conversations to show the new patient
     loadConversations();
+    // Refresh patients list to show the new patient
+    loadPatients();
     alert("Patient saved successfully!");
+  };
+
+  // Handle simple patient form submission
+  const handleSimplePatientSubmit = async (formData) => {
+    try {
+      // Convert the simple form data to the format expected by the backend
+      const patientData = {
+        patientName: formData.name,
+        patientEmail: `${formData.name.replace(/\s+/g, '.')}@example.com`, // Generate a placeholder email
+        patientPhone: formData.phone,
+        patientAge: formData.age,
+        consultationNotes: formData.observation
+      };
+      
+      const response = await createPatient(patientData);
+      
+      if (response.success) {
+        // Refresh the patient list
+        loadPatients();
+        alert("Patient record saved successfully!");
+        return Promise.resolve();
+      } else {
+        throw new Error(response.message || "Failed to save patient");
+      }
+    } catch (err) {
+      console.error("Error saving patient:", err);
+      alert(err.message || "Failed to save patient. Please try again.");
+      return Promise.reject(err);
+    }
+  };
+
+  // Handle consultation review submission
+  const handleConsultationReviewSubmit = async (formData) => {
+    try {
+      // Refresh the patient list to show the new note
+      await loadPatients();
+      alert("Consultation review saved successfully!");
+      return Promise.resolve();
+    } catch (err) {
+      console.error("Error refreshing patients after review submission:", err);
+      alert("Consultation review saved but failed to refresh list.");
+      return Promise.reject(err);
+    }
+  };
+
+  // Function to open consultation review form
+  const openConsultationReview = (patient) => {
+    setSelectedPatientForReview(patient);
+    setShowConsultationReviewForm(true);
+  };
+
+  // Function to open consultation history
+  const openConsultationHistory = (patient) => {
+    setSelectedPatientForHistory(patient);
+    setShowConsultationHistory(true);
   };
 
   // Cleanup polling interval on unmount
@@ -393,7 +491,23 @@ export default function TherapistDashboard() {
               transition={{ duration: 0.3 }}
             >
               <div className="card" style={{ padding: 24, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                <h3 style={{ margin: "0 0 20px 0", color: "#1e3a8a" }}>Upcoming Appointments</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <h3 style={{ margin: 0, color: "#1e3a8a" }}>Upcoming Appointments</h3>
+                  <button
+                    onClick={() => setShowSimplePatientForm(true)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#3b82f6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                  >
+                    + New
+                  </button>
+                </div>
                 {appointmentsLoading ? (
                   <div style={{ textAlign: "center", padding: "40px" }}>
                     <p style={{ color: "#64748b", fontSize: "1.1rem" }}>Loading appointments...</p>
@@ -752,7 +866,7 @@ export default function TherapistDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <h3 style={{ margin: 0, color: "#1e3a8a" }}>Patient List</h3>
                   <button
-                    onClick={() => setShowNewPatientForm(true)}
+                    onClick={() => setShowSimplePatientForm(true)}
                     style={{
                       padding: '8px 16px',
                       borderRadius: '6px',
@@ -766,14 +880,162 @@ export default function TherapistDashboard() {
                     + New Patient
                   </button>
                 </div>
-                <div style={{ textAlign: "center", padding: "40px" }}>
-                  <p style={{ color: "#64748b", fontSize: "1.1rem" }}>
-                    Patient management features coming soon.
-                  </p>
-                  <p style={{ color: "#94a3b8", marginTop: "10px" }}>
-                    This section will display your patient list and allow you to manage consultations.
-                  </p>
-                </div>
+                
+                {patientsLoading ? (
+                  <div style={{ textAlign: "center", padding: "40px" }}>
+                    <p style={{ color: "#64748b", fontSize: "1.1rem" }}>Loading patients...</p>
+                  </div>
+                ) : patientsList.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px" }}>
+                    <p style={{ color: "#64748b", fontSize: "1.1rem" }}>
+                      You have no patients in your records yet.
+                    </p>
+                    <p style={{ color: "#94a3b8", marginTop: "10px" }}>
+                      Add your first patient using the "New Patient" button above.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {patientsList.map((patient) => (
+                      <div
+                        key={patient._id}
+                        style={{
+                          padding: '20px',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          background: '#f8fafc'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '1.5rem' }}>👤</span>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#1e3a8a' }}>
+                                  {patient.user?.name || 'Patient'}
+                                </h4>
+                                {patient.user?.age ? (
+                                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                                    Age: {patient.user.age}
+                                  </p>
+                                ) : (
+                                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                                    Age not provided
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              background: '#10b981',
+                              color: 'white',
+                              fontWeight: '600',
+                              fontSize: '0.85rem'
+                            }}
+                          >
+                            Active
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '1.2rem' }}>📅</span>
+                              <span style={{ fontWeight: '600', color: '#1e3a8a' }}>
+                                Created: {new Date(patient.createdAt).toLocaleDateString('en-US', { 
+                                  year: 'numeric', 
+                                  month: 'short', 
+                                  day: 'numeric' 
+                                })}
+                              </span>
+                            </div>
+                            {patient.user?.phone && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.2rem' }}>📞</span>
+                                <span style={{ fontWeight: '600', color: '#3b82f6' }}>
+                                  {patient.user.phone}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div>
+                            {patient.user?.age && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '1.2rem' }}>👤</span>
+                                <span style={{ fontWeight: '600', color: '#1e3a8a' }}>
+                                  Age: {patient.user.age}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {patient.notes && patient.notes.length > 0 && (
+                          <div style={{ 
+                            marginTop: '12px', 
+                            padding: '12px', 
+                            background: '#fff', 
+                            borderRadius: '6px',
+                            border: '1px solid #e5e7eb'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                              <span style={{ fontSize: '1.2rem' }}>📝</span>
+                              <div style={{ flex: 1 }}>
+                                <strong style={{ color: '#374151', fontSize: '0.9rem' }}>Last Note:</strong>
+                                <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                                  {patient.notes[patient.notes.length - 1].content}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Consultation Review Button */}
+                        <div style={{ 
+                          marginTop: '16px', 
+                          display: 'flex', 
+                          justifyContent: 'flex-end',
+                          gap: '10px'
+                        }}>
+                          <button
+                            onClick={() => openConsultationHistory(patient)}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              border: '1px solid #10b981',
+                              background: 'white',
+                              color: '#10b981',
+                              cursor: 'pointer',
+                              fontWeight: '500',
+                              fontSize: '0.9rem'
+                            }}
+                          >
+                            Consultation History
+                          </button>
+                          <button
+                            onClick={() => openConsultationReview(patient)}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              border: '1px solid #3b82f6',
+                              background: 'white',
+                              color: '#3b82f6',
+                              cursor: 'pointer',
+                              fontWeight: '500',
+                              fontSize: '0.9rem'
+                            }}
+                          >
+                            + Consultation Review
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -785,6 +1047,31 @@ export default function TherapistDashboard() {
           <NewPatientForm
             onClose={() => setShowNewPatientForm(false)}
             onSubmit={handleNewPatientSubmit}
+          />
+        )}
+        
+        {/* Simple Patient Form Modal */}
+        {showSimplePatientForm && (
+          <SimplePatientForm
+            onClose={() => setShowSimplePatientForm(false)}
+            onSubmit={handleSimplePatientSubmit}
+          />
+        )}
+
+        {/* Consultation Review Form Modal */}
+        {showConsultationReviewForm && (
+          <ConsultationReviewForm
+            patient={selectedPatientForReview}
+            onClose={() => setShowConsultationReviewForm(false)}
+            onSubmit={handleConsultationReviewSubmit}
+          />
+        )}
+
+        {/* Consultation History Modal */}
+        {showConsultationHistory && (
+          <ConsultationHistory
+            patient={selectedPatientForHistory}
+            onClose={() => setShowConsultationHistory(false)}
           />
         )}
       </div>
