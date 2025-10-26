@@ -1109,3 +1109,54 @@ export async function deleteUpcomingPatient(id) {
     throw error;
   }
 }
+
+// Cancel multiple appointments by date and availability type
+export async function cancelAppointmentsByCriteria(criteria) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    return await request("/cancellations/bulk", {
+      method: "POST",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      },
+      body: JSON.stringify(criteria)
+    });
+  } catch (error) {
+    console.error("Error cancelling appointments by criteria:", error);
+    throw error;
+  }
+}
+
+// Get therapist cancellations
+export async function getTherapistCancellations(therapistId) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const params = new URLSearchParams({ therapistId }).toString();
+    return await request(`/cancellations/therapist?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting therapist cancellations:", error);
+    throw error;
+  }
+}
+
+// Get user cancellations
+export async function getUserCancellations(userId) {
+  try {
+    const token = localStorage.getItem("mm_token");
+    const params = new URLSearchParams({ userId }).toString();
+    return await request(`/cancellations/user?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { "Authorization": `Bearer ${token}` })
+      }
+    });
+  } catch (error) {
+    console.error("Error getting user cancellations:", error);
+    throw error;
+  }
+}

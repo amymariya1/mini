@@ -646,7 +646,7 @@ export async function bookAppointmentWithPayment(req, res) {
       userId,
       date: new Date(date),
       timeSlot,
-      availabilityType: availabilityType || therapistAvailabilityType, // Use the determined availability type
+      availabilityType: therapistAvailabilityType, // Use the determined availability type
       status: 'scheduled',
       age: age,
       problem: problem,

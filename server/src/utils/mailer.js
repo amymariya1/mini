@@ -1160,3 +1160,113 @@ The ${appName} Team
     throw error;
   }
 }
+
+// Function to send appointment cancellation emails
+export async function sendCancellationEmail(to, cancellationDetails) {
+  const appName = process.env.APP_NAME || 'MindMirror';
+  const from = process.env.MAIL_FROM || 'amymariya4@gmail.com'; // Use the specified email
+
+  const subject = `${appName} - Appointment Cancellation`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; }
+        .section { margin-bottom: 25px; }
+        .section-title { color: #ef4444; font-size: 18px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #ef4444; padding-bottom: 5px; }
+        .detail-row { margin: 8px 0; }
+        .detail-label { font-weight: bold; color: #555; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; color: #666; font-size: 14px; }
+        .highlight-box { background: #fef2f2; padding: 15px; border-left: 4px solid #ef4444; margin: 15px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0; font-size: 28px;">📅 Appointment Cancelled</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your therapy session has been cancelled</p>
+        </div>
+        
+        <div class="content">
+          <p style="font-size: 16px; margin-bottom: 20px;">Dear ${cancellationDetails.patientName},</p>
+          <p>We're writing to inform you that your therapy session with ${cancellationDetails.therapistName} has been cancelled.</p>
+          
+          <div class="highlight-box">
+            <div class="section-title">📅 Cancelled Appointment Details</div>
+            <div class="detail-row"><span class="detail-label">Therapist:</span> ${cancellationDetails.therapistName}</div>
+            <div class="detail-row"><span class="detail-label">Date:</span> ${cancellationDetails.appointmentDate}</div>
+            <div class="detail-row"><span class="detail-label">Time:</span> ${cancellationDetails.appointmentTime}</div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">📝 Cancellation Reason</div>
+            <p>${cancellationDetails.reason}</p>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">🔁 Next Steps</div>
+            <p>Please contact your therapist or our support team to reschedule this appointment at your convenience.</p>
+            <p>If you have any questions or concerns, please don't hesitate to reach out to us.</p>
+          </div>
+          
+          <p style="margin-top: 25px;">We apologize for any inconvenience this may cause and appreciate your understanding.</p>
+        </div>
+        
+        <div class="footer">
+          <p style="margin: 0 0 10px 0;"><strong>Best regards,</strong></p>
+          <p style="margin: 0;">The ${appName} Team</p>
+          <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">This is an automated notification email. Please do not reply to this message.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Dear ${cancellationDetails.patientName},
+
+We're writing to inform you that your therapy session with ${cancellationDetails.therapistName} has been cancelled.
+
+Cancelled Appointment Details:
+Therapist: ${cancellationDetails.therapistName}
+Date: ${cancellationDetails.appointmentDate}
+Time: ${cancellationDetails.appointmentTime}
+
+Cancellation Reason:
+${cancellationDetails.reason}
+
+Next Steps:
+Please contact your therapist or our support team to reschedule this appointment at your convenience.
+
+If you have any questions or concerns, please don't hesitate to reach out to us.
+
+We apologize for any inconvenience this may cause and appreciate your understanding.
+
+Best regards,
+The ${appName} Team
+  `;
+
+  console.log(`Mailer: Attempting to send cancellation email to ${to}`);
+  
+  try {
+    const transporter = await transporterPromise;
+    const info = await transporter.sendMail({ from, to, subject, text, html });
+    console.log(`Mailer: Cancellation email sent successfully to ${to}. Message ID: ${info.messageId}`);
+
+    // If using Ethereal, print the preview URL to the console
+    const previewUrl = nodemailer.getTestMessageUrl?.(info);
+    if (previewUrl) {
+      console.log('Ethereal preview URL:', previewUrl);
+    }
+    
+    return info;
+  } catch (error) {
+    console.error(`Mailer: Failed to send cancellation email to ${to}. Error:`, error.message);
+    throw error;
+  }
+}

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { sendMessage, getChatHistory, getConversations, markMessageAsRead, getTherapistAppointments, getPatients, createPatient } from "../services/api";
+import { sendMessage, getChatHistory, getConversations, markMessageAsRead, getTherapistAppointments, getPatients, createPatient, cancelAppointment } from "../services/api";
 import TherapistTimeSlots from "./TherapistTimeSlots";
 import NewPatientForm from "../components/NewPatientForm";
 import SimplePatientForm from "../components/SimplePatientForm";
 import ConsultationReviewForm from "../components/ConsultationReviewForm";
 import ConsultationHistory from "../components/ConsultationHistory";
+import CancelAppointmentsForm from "../components/CancelAppointmentsForm";
 
 export default function TherapistDashboard() {
   const navigate = useNavigate();
@@ -42,6 +43,9 @@ export default function TherapistDashboard() {
   // Patient list states
   const [patientsList, setPatientsList] = useState([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
+
+  // Cancel appointments form state
+  const [showCancelAppointmentsForm, setShowCancelAppointmentsForm] = useState(false);
 
   useEffect(() => {
     // Try to get user from localStorage
@@ -250,6 +254,73 @@ export default function TherapistDashboard() {
       console.error("Error saving patient:", err);
       alert(err.message || "Failed to save patient. Please try again.");
       return Promise.reject(err);
+    }
+  };
+
+  // Handle appointment cancellation
+  const handleCancelAppointment = async (appointmentId) => {
+    if (!window.confirm("Are you sure you want to cancel this appointment?")) {
+      return;
+    }
+    
+    try {
+      const response = await cancelAppointment(appointmentId);
+      
+      if (response.success) {
+        // Refresh the appointments list
+        await loadAppointments();
+        alert("Appointment cancelled successfully!");
+      } else {
+        throw new Error(response.message || "Failed to cancel appointment");
+      }
+    } catch (err) {
+      console.error("Error cancelling appointment:", err);
+      alert(err.message || "Failed to cancel appointment. Please try again.");
+    }
+  };
+
+  // Handle cancellation of appointments
+  const handleCancelAppointments = async () => {
+    try {
+      // Refresh the appointments list
+      await loadAppointments();
+      alert("Appointments cancelled successfully and emails sent to patients!");
+    } catch (err) {
+      console.error("Error refreshing appointments after cancellation:", err);
+      alert("Appointments cancelled but failed to refresh list. Please refresh the page manually.");
+    }
+  };
+
+  // Handle cancellation of all appointments
+  const handleCancelAllAppointments = async () => {
+    if (!window.confirm("Are you sure you want to cancel all upcoming appointments? This action cannot be undone.")) {
+      return;
+    }
+    
+    try {
+      // Cancel all appointments one by one
+      const cancelPromises = appointments.map(appointment => 
+        cancelAppointment(appointment._id)
+      );
+      
+      // Wait for all cancellations to complete
+      const results = await Promise.all(cancelPromises);
+      
+      // Check if all cancellations were successful
+      const allSuccessful = results.every(result => result.success);
+      
+      if (allSuccessful) {
+        // Refresh the appointments list
+        await loadAppointments();
+        alert("All appointments cancelled successfully!");
+      } else {
+        // Some cancellations failed
+        await loadAppointments(); // Refresh to show which appointments were cancelled
+        alert("Some appointments could not be cancelled. Please check the list and try again for failed appointments.");
+      }
+    } catch (err) {
+      console.error("Error cancelling appointments:", err);
+      alert(err.message || "Failed to cancel appointments. Please try again.");
     }
   };
 
@@ -493,20 +564,38 @@ export default function TherapistDashboard() {
               <div className="card" style={{ padding: 24, borderRadius: 12, border: "1px solid #e5e7eb" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                   <h3 style={{ margin: 0, color: "#1e3a8a" }}>Upcoming Appointments</h3>
-                  <button
-                    onClick={() => setShowSimplePatientForm(true)}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: '#3b82f6',
-                      color: 'white',
-                      cursor: 'pointer',
-                      fontWeight: '500'
-                    }}
-                  >
-                    + New
-                  </button>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <button
+                      onClick={() => setShowSimplePatientForm(true)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#3b82f6',
+                        color: 'white',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                    >
+                      + New
+                    </button>
+                    {appointments.length > 0 && (
+                      <button
+                        onClick={() => setShowCancelAppointmentsForm(true)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          border: '1px solid #ef4444',
+                          background: 'white',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          fontWeight: '500'
+                        }}
+                      >
+                        Cancel Appointments
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {appointmentsLoading ? (
                   <div style={{ textAlign: "center", padding: "40px" }}>
@@ -1072,6 +1161,16 @@ export default function TherapistDashboard() {
           <ConsultationHistory
             patient={selectedPatientForHistory}
             onClose={() => setShowConsultationHistory(false)}
+          />
+        )}
+
+        {/* Cancel Appointments Form Modal */}
+        {showCancelAppointmentsForm && (
+          <CancelAppointmentsForm
+            therapistId={user.id}
+            appointments={appointments}
+            onCancel={handleCancelAppointments}
+            onClose={() => setShowCancelAppointmentsForm(false)}
           />
         )}
       </div>

@@ -40,6 +40,13 @@ const appointmentSchema = new mongoose.Schema({
   problem: {
     type: String
   },
+  // Payment information
+  paymentId: {
+    type: String
+  },
+  amount: {
+    type: Number
+  },
   // Reference to leave if appointment was affected by a leave
   leaveId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -58,5 +65,6 @@ const appointmentSchema = new mongoose.Schema({
 // Index for efficient querying
 appointmentSchema.index({ therapistId: 1, date: 1 });
 appointmentSchema.index({ userId: 1, date: 1 });
+appointmentSchema.index({ paymentId: 1 });
 
 export default mongoose.model("Appointment", appointmentSchema);
