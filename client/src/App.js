@@ -16,6 +16,7 @@ import BlogMine from "./pages/BlogMine";
 import Logout from "./pages/Logout";
 import Wishlist from "./pages/Wishlist";
 import Orders from "./pages/Orders";
+import OrderDetails from "./pages/OrderDetails";
 import CheckoutPayment from "./pages/CheckoutPayment";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import { auth } from "./services/firebase";
@@ -49,6 +50,7 @@ import VideoPlatform from "./pages/VideoPlatform";
 import BookAppointment from "./pages/BookAppointment";
 import PatientChat from "./pages/PatientChat";
 import TestComponent from "./pages/TestComponent"; // Test component import
+import TestOrderCreation from "./pages/TestOrderCreation";
 import Meditation from "./pages/Meditation";
 import AdminMeditation from "./pages/AdminMeditation";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -384,6 +386,14 @@ function AnimatedRoutes() {
           }
         />
         <Route
+          path="/orders/:orderId"
+          element={
+            <RequireAuth>
+              <PageTransition><OrderDetails /></PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/checkout/payment"
           element={
             <RequireAuth>
@@ -571,6 +581,16 @@ function AnimatedRoutes() {
           element={
             <RequireAuth>
               <PageTransition><TestComponent /></PageTransition>
+            </RequireAuth>
+          }
+        />
+
+        {/* ✅ Test Order Creation Route */}
+        <Route
+          path="/test-order-creation"
+          element={
+            <RequireAuth>
+              <PageTransition><TestOrderCreation /></PageTransition>
             </RequireAuth>
           }
         />

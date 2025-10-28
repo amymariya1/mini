@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { formatINR } from "../utils/currency";
 import { getCart, clearCart } from "../services/api";
+import { createOrder } from "../services/api"; // Import the new createOrder function
 
 export default function OrderConfirmation() {
   const navigate = useNavigate();
@@ -77,9 +78,12 @@ export default function OrderConfirmation() {
 
   // Create order in database
   useEffect(() => {
-    async function createOrder() {
-      if (cart.length > 0 && userId && userEmail && address) {
+    async function createOrderInDatabase() {
+      // Only create order if we have all required data and haven't created one yet
+      if (cart.length > 0 && userId && userEmail && address && !orderId) {
         try {
+          console.log('Creating order with data:', { cart, userId, userEmail, address, paymentMethod });
+          
           // Generate order ID
           const newOrderId = `ORD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
           setOrderId(newOrderId);
@@ -99,7 +103,13 @@ export default function OrderConfirmation() {
             orderId: newOrderId,
             userId,
             userEmail,
-            items: cart,
+            items: cart.map(item => ({
+              productId: item.id,
+              name: item.name,
+              price: item.price,
+              image: item.image,
+              quantity: item.quantity
+            })),
             shippingAddress: address,
             paymentMethod,
             subtotal,
@@ -108,18 +118,18 @@ export default function OrderConfirmation() {
             status: "confirmed"
           };
           
-          // Save order to database
-          const response = await fetch('http://localhost:5002/api/orders', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(orderData)
-          });
+          console.log('Creating order with data:', orderData);
           
-          const result = await response.json();
+          // Save order to database using the new API function
+          const result = await createOrder(orderData);
+          console.log('Order creation result:', result);
+          
           if (result.success) {
             console.log('Order created successfully:', result.order);
+            // Redirect to orders page after successful order creation
+            setTimeout(() => {
+              navigate('/orders');
+            }, 3000); // Redirect after 3 seconds
           } else {
             console.error('Failed to create order:', result.message);
           }
@@ -143,11 +153,21 @@ export default function OrderConfirmation() {
         } catch (error) {
           console.error('Error creating order:', error);
         }
+      } else if (!userId) {
+        console.log('Not creating order - userId not available yet');
+      } else if (!userEmail) {
+        console.log('Not creating order - userEmail not available yet');
+      } else if (cart.length === 0) {
+        console.log('Not creating order - cart is empty');
+      } else if (!address) {
+        console.log('Not creating order - address not available');
+      } else if (orderId) {
+        console.log('Not creating order - order already created');
       }
     }
     
-    createOrder();
-  }, [cart, userId, userEmail, address, paymentMethod]);
+    createOrderInDatabase();
+  }, [cart, userId, userEmail, address, paymentMethod, orderId, navigate]);
 
   // Calculate cart totals
   const getTotalPrice = () => {
@@ -275,191 +295,87 @@ export default function OrderConfirmation() {
               <h3 style={{ marginBottom: '12px' }}>Delivery Address</h3>
               <div style={{ 
                 padding: '16px', 
-                background: '#f8fafc', 
+                background: '#f8fafc',
                 borderRadius: '8px',
                 border: '1px solid #e2e8f0'
               }}>
-                <h4 style={{ margin: '0 0 8px 0' }}>{address.fullName}</h4>
-                <p style={{ margin: '4px 0', fontSize: '14px' }}>
-                  {address.addressLine1}{address.addressLine2 && `, ${address.addressLine2}`}, 
-                  {address.city}, {address.state} {address.postalCode}
-                </p>
-                <p style={{ margin: '4px 0', fontSize: '14px' }}>
-                  Phone: {address.phone}
-                </p>
+                <p style={{ margin: '0 0 8px 0', fontWeight: '500' }}>{address.fullName}</p>
+                <p style={{ margin: '0 0 4px 0' }}>{address.addressLine1}</p>
+                {address.addressLine2 && <p style={{ margin: '0 0 4px 0' }}>{address.addressLine2}</p>}
+                <p style={{ margin: '0 0 4px 0' }}>{address.city}, {address.state} {address.postalCode}</p>
+                <p style={{ margin: '0' }}>Phone: {address.phone}</p>
               </div>
             </div>
           )}
-        </div>
-        
-        <div style={{ 
-          background: '#fff',
-          borderRadius: '12px',
-          padding: '24px',
-          marginBottom: '24px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          textAlign: 'left'
-        }}>
-          <h2 style={{ margin: '0 0 16px 0' }}>Order Items</h2>
           
-          <div style={{ 
-            maxHeight: '300px', 
-            overflowY: 'auto',
-            marginBottom: '16px'
-          }}>
-            {cart.map((item) => (
-              <div key={item.id} style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '12px 0',
-                borderBottom: '1px solid #e2e8f0'
-              }}>
-                <div style={{
-                  width: '50px',
-                  height: '50px',
-                  background: '#e2e8f0',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: '12px',
-                  fontSize: '20px'
-                }}>
-                  {typeof item.image === 'string' && item.image.trim().length > 0 ? (
-                    <img 
-                      src={item.image} 
-                      alt={item.name} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} 
-                    />
-                  ) : (
-                    <span>🛍️</span>
-                  )}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: 0, fontSize: '14px' }}>{item.name}</h4>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
-                    Qty: {item.quantity} × {formatINR(item.price)}
-                  </p>
-                </div>
-                <div style={{ fontWeight: '500' }}>
-                  {formatINR(item.price * item.quantity)}
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span>Subtotal</span>
-              <span>{formatINR(getTotalPrice())}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span>Shipping</span>
-              <span>FREE</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span>Tax</span>
-              <span>{formatINR(getTotalPrice() * 0.18)}</span>
-            </div>
+          <div style={{ marginTop: '24px' }}>
+            <h3 style={{ marginBottom: '12px' }}>Order Summary</h3>
             <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              marginTop: '12px',
-              paddingTop: '12px',
-              borderTop: '2px solid #e2e8f0',
-              fontWeight: '600',
-              fontSize: '18px'
+              display: 'grid',
+              gap: '12px'
             }}>
-              <span>Total Paid</span>
-              <span>{formatINR(getTotalPrice() * 1.18)}</span>
+              {cart.map((item, index) => (
+                <div key={index} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  paddingBottom: '12px',
+                  borderBottom: index < cart.length - 1 ? '1px solid #e2e8f0' : 'none'
+                }}>
+                  <div>
+                    <p style={{ margin: '0 0 4px 0', fontWeight: '500' }}>{item.name}</p>
+                    <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Qty: {item.quantity}</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ margin: '0 0 4px 0' }}>{formatINR(item.price * item.quantity)}</p>
+                    <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>{formatINR(item.price)} each</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div style={{ 
+              borderTop: '1px solid #e2e8f0',
+              marginTop: '16px',
+              paddingTop: '16px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span>Subtotal</span>
+                <span>{formatINR(getTotalPrice())}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span>Shipping</span>
+                <span>FREE</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span>Tax</span>
+                <span>{formatINR(getTotalPrice() * 0.18)}</span>
+              </div>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                marginTop: '12px',
+                paddingTop: '12px',
+                borderTop: '1px solid #e2e8f0',
+                fontWeight: '600',
+                fontSize: '18px'
+              }}>
+                <span>Total</span>
+                <span>{formatINR(getTotalPrice() * 1.18)}</span>
+              </div>
             </div>
           </div>
         </div>
         
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '24px' }}>
-          <button
-            className="secondary-btn"
-            onClick={() => {
-              // Ensure we don't try to reopen the cart since it's been cleared
-              localStorage.removeItem('mm_reopen_cart');
-              navigate('/orders');
-            }}
-            style={{ padding: '12px 24px' }}
-          >
-            View Order History
-          </button>
-          <button 
-            className="cta-btn" 
-            onClick={() => {
-              // Ensure we don't try to reopen the cart since it's been cleared
-              localStorage.removeItem('mm_reopen_cart');
-              navigate('/shopping');
-            }}
-            style={{ padding: '12px 24px', color: "black" }}
-          >
-            Continue Shopping
-          </button>
-        </div>
-        
-        <div style={{ 
-          marginTop: '32px', 
-          padding: '20px', 
-          background: '#f0f9ff', 
-          borderRadius: '12px',
-          border: '1px solid #bae6fd'
-        }}>
-          <h3 style={{ margin: '0 0 12px 0' }}>What's Next?</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                background: '#3b82f6',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 8px',
-                color: 'white'
-              }}>
-                1
-              </div>
-              <p style={{ margin: 0, fontSize: '14px' }}>Order Processing</p>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                background: '#3b82f6',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 8px',
-                color: 'white'
-              }}>
-                2
-              </div>
-              <p style={{ margin: 0, fontSize: '14px' }}>Shipped</p>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                background: '#10b981',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 8px',
-                color: 'white'
-              }}>
-                3
-              </div>
-              <p style={{ margin: 0, fontSize: '14px' }}>Delivered</p>
-            </div>
-          </div>
-        </div>
+        <button 
+          className="cta-btn"
+          onClick={() => navigate('/orders')}
+          style={{ 
+            padding: '12px 24px',
+            fontSize: '16px'
+          }}
+        >
+          View Order History
+        </button>
       </motion.div>
     </div>
   );

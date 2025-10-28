@@ -26,6 +26,29 @@ export const getOrderById = async (req, res) => {
   }
 };
 
+// Get order by ID for regular users (with authentication)
+export const getUserOrderById = async (req, res) => {
+  try {
+    // Get userId from request user (set by authentication middleware)
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+    
+    const order = await Order.findOne({ _id: req.params.id, userId: userId });
+    
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found or access denied" });
+    }
+    
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error("Error fetching order:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch order" });
+  }
+};
+
 // Update order status (admin only)
 export const updateOrderStatus = async (req, res) => {
   try {
@@ -67,7 +90,17 @@ export const updateOrderStatus = async (req, res) => {
 export const getUserOrders = async (req, res) => {
   try {
     const { userId } = req.params;
+    // Get userId from request user (set by authentication middleware)
+    const authenticatedUserId = req.user?.id;
+    
+    // Verify that the authenticated user is requesting their own orders
+    if (authenticatedUserId !== userId) {
+      return res.status(403).json({ success: false, message: "Access denied. You can only view your own orders." });
+    }
+    
+    console.log('Fetching orders for userId:', userId);
     const orders = await Order.find({ userId }).sort({ createdAt: -1 });
+    console.log('Found orders:', orders);
     res.json({ success: true, orders });
   } catch (error) {
     console.error("Error fetching user orders:", error);

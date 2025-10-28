@@ -237,6 +237,68 @@ export async function adminUpdateOrderStatus(orderId, status, note) {
   });
 }
 
+// Create a new order
+export async function createOrder(orderData) {
+  return request('/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(orderData),
+  });
+}
+
+// User order functions
+export async function fetchUserOrders(userId) {
+  console.log('API: Fetching orders for userId:', userId);
+  const result = await request(`/user-orders/${userId}`, {
+    headers: userHeaders()
+  });
+  console.log('API: Orders result:', result);
+  return result;
+}
+
+export async function fetchOrderById(orderId) {
+  console.log('API: Fetching order by ID:', orderId);
+  const result = await request(`/orders/${orderId}/user`, {
+    method: 'GET',
+    headers: userHeaders()
+  });
+  console.log('API: Order result:', result);
+  return result;
+}
+
+// User notification functions
+export async function fetchUserNotifications(userEmail) {
+  console.log('API: Fetching notifications for userEmail:', userEmail);
+  const result = await request(`/user-notifications/${userEmail}`, {
+    headers: userHeaders()
+  });
+  console.log('API: Notifications result:', result);
+  return result;
+}
+
+export async function markNotificationAsRead(notificationId) {
+  console.log('API: Marking notification as read:', notificationId);
+  const result = await request(`/notifications/${notificationId}/read`, {
+    method: 'PATCH',
+    headers: userHeaders()
+  });
+  console.log('API: Mark notification as read result:', result);
+  return result;
+}
+
+export async function markAllNotificationsAsRead(userEmail) {
+  console.log('API: Marking all notifications as read for userEmail:', userEmail);
+  const result = await request(`/notifications/read-all`, {
+    method: 'POST',
+    headers: userHeaders(),
+    body: JSON.stringify({ userEmail })
+  });
+  console.log('API: Mark all notifications as read result:', result);
+  return result;
+}
+
 // Admin API
 function adminHeaders() {
   const token = localStorage.getItem('mm_admin_token');
@@ -1249,4 +1311,24 @@ export async function getUserCancellations(userId) {
     console.error("Error getting user cancellations:", error);
     throw error;
   }
+}
+
+// User order functions
+export async function getUserOrders(userId) {
+  console.log('API: Fetching orders for userId:', userId);
+  const result = await request(`/user-orders/${userId}`, {
+    headers: userHeaders()
+  });
+  console.log('API: Orders result:', result);
+  return result;
+}
+
+export async function getOrderById(orderId) {
+  console.log('API: Fetching order by ID:', orderId);
+  const result = await request(`/orders/${orderId}/user`, {
+    method: 'GET',
+    headers: userHeaders()
+  });
+  console.log('API: Order result:', result);
+  return result;
 }

@@ -25,6 +25,7 @@ import "../styles/AdminDashboard.css";
 
 // Add the import for the new OrderManagement component
 import OrderManagement from "../components/OrderManagement";
+import ProductCategoryDetails from "../components/ProductCategoryDetails";
 
 // === ICONS ===
 const UsersIcon = () => (
@@ -118,6 +119,7 @@ export default function AdminDashboard() {
   const [showAddTherapist, setShowAddTherapist] = useState(false);
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [showRestockSuggestions, setShowRestockSuggestions] = useState(false);
+  const [showProductCategoryDetails, setShowProductCategoryDetails] = useState(false);
 
   const [therapistName, setTherapistName] = useState("");
   const [therapistEmail, setTherapistEmail] = useState("");
@@ -691,16 +693,6 @@ export default function AdminDashboard() {
           <div style={{ marginBottom: "1rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
             <input className="input" placeholder={`Search ${tab.replace("-", " ")}...`} value={search} onChange={e => setSearch(e.target.value)} />
-            {tab === "users" && (
-              <button className="cta-btn primary" onClick={() => setShowAddTherapist(true)}>
-                + Add Therapist
-              </button>
-            )}
-            {tab === "therapists" && (
-              <button className="cta-btn primary" onClick={() => setShowAddTherapist(true)}>
-                + Add Therapist
-              </button>
-            )}
             {tab === "products" && (
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button 
@@ -715,6 +707,12 @@ export default function AdminDashboard() {
                   onClick={() => setShowRestockSuggestions(!showRestockSuggestions)}
                 >
                   🔄 Restock Suggestions
+                </button>
+                <button 
+                  className="cta-btn"
+                  onClick={() => setShowProductCategoryDetails(true)}
+                >
+                  📊 Category Details
                 </button>
                 <button className="cta-btn primary" onClick={() => setShowAddModal(true)}>
                   + Add Product
@@ -809,9 +807,6 @@ export default function AdminDashboard() {
                     <button className="cta-btn" onClick={() => handleToggleUserStatus(u._id, !u.isActive)}>
                       {u.isActive ? "Deactivate" : "Activate"}
                     </button>
-                    <button className="cta-btn danger" onClick={() => handleDeleteUser(u._id)}>
-                      Delete
-                    </button>
                   </div>
                 </div>
               ))
@@ -836,9 +831,6 @@ export default function AdminDashboard() {
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button className="cta-btn" onClick={() => handleToggleTherapistStatus(t._id, !t.isActive)}>
                       {t.isActive ? "Deactivate" : "Activate"}
-                    </button>
-                    <button className="cta-btn danger" onClick={() => handleDeleteUser(t._id)}>
-                      Delete
                     </button>
                   </div>
                 </div>
@@ -871,9 +863,6 @@ export default function AdminDashboard() {
                     <button className="cta-btn primary" onClick={() => handleApproveTherapist(t._id)}>
                       Approve
                     </button>
-                    <button className="cta-btn danger" onClick={() => handleDeleteUser(t._id)}>
-                      Delete
-                    </button>
                   </div>
                 </div>
               ))
@@ -884,89 +873,95 @@ export default function AdminDashboard() {
         {/* PRODUCTS TAB */}
         {tab === "products" && (
           <div>
-            {(showLowStockOnly || showRestockSuggestions) && (
-              <div style={{ marginBottom: '1rem' }}>
-                <button 
-                  onClick={() => {
-                    setShowLowStockOnly(false);
-                    setShowRestockSuggestions(false);
-                  }}
-                  className="cta-btn"
-                  style={{ 
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    backgroundColor: '#f0f0f0',
-                    border: '1px solid #ddd',
-                    color: '#333'
-                  }}
-                >
-                  ← Show All Products
-                </button>
-              </div>
-            )}
-            {loading ? (
-              <p>Loading products...</p>
+            {showProductCategoryDetails ? (
+              <ProductCategoryDetails onBack={() => setShowProductCategoryDetails(false)} />
             ) : (
-              <div className="product-grid">
-                {filteredProducts.map(p => (
-                  <div 
-                    key={p._id} 
-                    className="user-card"
-                    style={{
-                      borderLeft: p.stock === 0 ? '4px solid #f44336' : 
-                                  p.stock < 50 ? '4px solid #ff9800' : '4px solid #4caf50'
-                    }}
-                  >
-                    <h4>{p.name}</h4>
-                    {p.image && (
-                      <img
-                        src={p.image.startsWith("http") ? p.image : `http://localhost:5000${p.image}`}
-                        alt={p.name}
-                        style={{ width: "100px", height: "100px", borderRadius: "8px" }}
-                      />
-                    )}
-                    <p>₹{p.price}</p>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '5px',
-                      color: p.stock === 0 ? '#f44336' : p.stock < 50 ? '#ff9800' : '#4caf50',
-                      fontWeight: 500
-                    }}>
-                      Stock: {p.stock}
-                      {p.stock < 50 && (
-                        <span style={{ 
-                          backgroundColor: p.stock === 0 ? '#f44336' : '#ff9800',
-                          color: 'white',
-                          borderRadius: '4px',
-                          padding: '2px 6px',
-                          fontSize: '0.8em',
-                          marginLeft: '5px'
-                        }}>
-                          {p.stock === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button
-                        className="cta-btn"
-                        onClick={async () => {
-                          const newStock = prompt("Enter new stock:", p.stock);
-                          if (!newStock) return;
-                          const { product: updated } = await adminUpdateProductStock(p._id, parseInt(newStock));
-                          setProducts(products.map(prod => (prod._id === p._id ? updated : prod)));
+              <>
+                {(showLowStockOnly || showRestockSuggestions) && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <button 
+                      onClick={() => {
+                        setShowLowStockOnly(false);
+                        setShowRestockSuggestions(false);
+                      }}
+                      className="cta-btn"
+                      style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        backgroundColor: '#f0f0f0',
+                        border: '1px solid #ddd',
+                        color: '#333'
+                      }}
+                    >
+                      ← Show All Products
+                    </button>
+                  </div>
+                )}
+                {loading ? (
+                  <p>Loading products...</p>
+                ) : (
+                  <div className="product-grid">
+                    {filteredProducts.map(p => (
+                      <div 
+                        key={p._id} 
+                        className="user-card"
+                        style={{
+                          borderLeft: p.stock === 0 ? '4px solid #f44336' : 
+                                      p.stock < 50 ? '4px solid #ff9800' : '4px solid #4caf50'
                         }}
                       >
-                        Update Stock
-                      </button>
-                      <button className="cta-btn danger" onClick={() => handleDeleteProduct(p._id)}>
-                        Delete
-                      </button>
-                    </div>
+                        <h4>{p.name}</h4>
+                        {p.image && (
+                          <img
+                            src={p.image.startsWith("http") ? p.image : `http://localhost:5000${p.image}`}
+                            alt={p.name}
+                            style={{ width: "100px", height: "100px", borderRadius: "8px" }}
+                          />
+                        )}
+                        <p>₹{p.price}</p>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '5px',
+                          color: p.stock === 0 ? '#f44336' : p.stock < 50 ? '#ff9800' : '#4caf50',
+                          fontWeight: 500
+                        }}>
+                          Stock: {p.stock}
+                          {p.stock < 50 && (
+                            <span style={{ 
+                              backgroundColor: p.stock === 0 ? '#f44336' : '#ff9800',
+                              color: 'white',
+                              borderRadius: '4px',
+                              padding: '2px 6px',
+                              fontSize: '0.8em',
+                              marginLeft: '5px'
+                            }}>
+                              {p.stock === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            className="cta-btn"
+                            onClick={async () => {
+                              const newStock = prompt("Enter new stock:", p.stock);
+                              if (!newStock) return;
+                              const { product: updated } = await adminUpdateProductStock(p._id, parseInt(newStock));
+                              setProducts(products.map(prod => (prod._id === p._id ? updated : prod)));
+                            }}
+                          >
+                            Update Stock
+                          </button>
+                          <button className="cta-btn danger" onClick={() => handleDeleteProduct(p._id)}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         )}

@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { formatINR } from "../utils/currency";
+import { fetchUserOrders as getUserOrders } from "../services/api";
 
 export default function Orders() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [selectedOrder, setSelectedOrder] = useState(null);
 
   const statusOptions = [
     { value: 'pending', label: 'Pending' },
@@ -43,26 +44,65 @@ export default function Orders() {
     }
   }, []);
 
-  // Fetch user orders
+  // Fetch user orders when userId changes
   useEffect(() => {
     const fetchOrders = async () => {
-      if (!userId) return;
+      if (!userId) {
+        console.log('No userId available, cannot fetch orders');
+        return;
+      }
+      
+      console.log('Fetching orders for userId:', userId);
       
       setLoading(true);
+      setError(null);
       try {
-        const response = await fetch(`http://localhost:5002/api/user-orders/${userId}`);
-        const data = await response.json();
-        if (data.success) {
-          setOrders(data.orders);
+        const response = await getUserOrders(userId);
+        console.log('Orders response:', response);
+        if (response.success) {
+          setOrders(response.orders);
+          console.log('Successfully fetched orders:', response.orders);
+        } else {
+          setError(response.message || 'Failed to fetch orders');
+          console.error('Failed to fetch orders:', response.message);
         }
       } catch (error) {
         console.error('Error fetching orders:', error);
+        setError('Failed to fetch orders. Please try again.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchOrders();
+    if (userId) {
+      fetchOrders();
+    }
+  }, [userId]);
+
+  // Add a refresh function to manually refresh orders
+  const refreshOrders = async () => {
+    if (!userId) return;
+    
+    setLoading(true);
+    try {
+      const response = await getUserOrders(userId);
+      if (response.success) {
+        setOrders(response.orders);
+      } else {
+        setError(response.message || 'Failed to fetch orders');
+      }
+    } catch (error) {
+      setError('Failed to fetch orders. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refresh orders when component mounts to ensure latest data
+  useEffect(() => {
+    if (userId) {
+      refreshOrders();
+    }
   }, [userId]);
 
   const getStatusLabel = (status) => {
@@ -74,6 +114,49 @@ export default function Orders() {
     return new Date(dateString).toLocaleDateString();
   };
 
+  // Format status history for display
+  const formatStatusHistory = (statusHistory) => {
+    if (!statusHistory || statusHistory.length === 0) return "Order created";
+    
+    const latestUpdate = statusHistory[statusHistory.length - 1];
+    const timestamp = new Date(latestUpdate.timestamp).toLocaleString();
+    return `${getStatusLabel(latestUpdate.status)} - ${timestamp}`;
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <Navbar />
+        <div style={{ maxWidth: 1000, margin: "32px auto", padding: "0 16px" }}>
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <p>Loading your orders...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <Navbar />
+        <div style={{ maxWidth: 1000, margin: "32px auto", padding: "0 16px" }}>
+          <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+            <h3>Error</h3>
+            <p>{error}</p>
+            <button 
+              className="cta-btn"
+              onClick={() => window.location.reload()}
+              style={{ marginTop: '20px' }}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <Navbar />
@@ -83,20 +166,25 @@ export default function Orders() {
             <h1 style={{ margin: 0 }}>My Orders</h1>
             <p className="subtle">View and track your order history</p>
           </div>
-          <button 
-            className="cta-btn"
-            onClick={() => navigate('/shopping')}
-            style={{ color: "black" }}
-          >
-            Continue Shopping
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              className="cta-btn secondary"
+              onClick={refreshOrders}
+              style={{ color: "black" }}
+            >
+              Refresh
+            </button>
+            <button 
+              className="cta-btn"
+              onClick={() => navigate('/shopping')}
+              style={{ color: "black" }}
+            >
+              Continue Shopping
+            </button>
+          </div>
         </div>
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <p>Loading your orders...</p>
-          </div>
-        ) : orders.length === 0 ? (
+        {orders.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
             <h3>You haven't placed any orders yet</h3>
             <p>When you make a purchase, your orders will appear here.</p>
@@ -116,9 +204,25 @@ export default function Orders() {
                 className="card"
                 style={{ 
                   marginBottom: '20px',
-                  borderLeft: `4px solid ${statusColors[order.status] || '#9e9e9e'}`
+                  borderLeft: `4px solid ${statusColors[order.status] || '#9e9e9e'}`,
+                  position: 'relative'
                 }}
               >
+                {/* Status indicator badge */}
+                <div style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '15px',
+                  background: statusColors[order.status] || '#9e9e9e',
+                  color: 'white',
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.8em',
+                  fontWeight: '600'
+                }}>
+                  {getStatusLabel(order.status)}
+                </div>
+                
                 <div style={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
@@ -137,18 +241,18 @@ export default function Orders() {
                     <p style={{ margin: 0, fontSize: '1.2em', fontWeight: 'bold' }}>
                       {formatINR(order.total)}
                     </p>
-                    <p style={{ margin: '5px 0 0 0' }}>
-                      <span style={{
-                        backgroundColor: statusColors[order.status] || '#9e9e9e',
-                        color: 'white',
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '0.8em'
-                      }}>
-                        {getStatusLabel(order.status)}
-                      </span>
-                    </p>
                   </div>
+                </div>
+                
+                {/* Status history */}
+                <div style={{ 
+                  background: '#f8f9fa',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  marginBottom: '15px',
+                  fontSize: '0.9em'
+                }}>
+                  <strong>Last Update:</strong> {formatStatusHistory(order.statusHistory)}
                 </div>
                 
                 <div style={{ 
@@ -203,202 +307,15 @@ export default function Orders() {
                 </div>
                 
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button 
+                  <Link 
+                    to={`/orders/${order._id}`}
                     className="secondary-btn"
-                    onClick={() => setSelectedOrder(order)}
                   >
                     View Details
-                  </button>
+                  </Link>
                 </div>
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Order Details Modal */}
-        {selectedOrder && (
-          <div 
-            className="modal-backdrop"
-            onClick={() => setSelectedOrder(null)}
-          >
-            <div 
-              className="modal" 
-              style={{ maxWidth: '600px' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                marginBottom: '20px'
-              }}>
-                <h2 style={{ margin: 0 }}>Order Details</h2>
-                <button 
-                  className="cta-btn secondary"
-                  onClick={() => setSelectedOrder(null)}
-                  style={{ padding: '5px 10px' }}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <div style={{ marginBottom: '20px' }}>
-                <h3>Order #{selectedOrder.orderId}</h3>
-                <p>Placed on {formatDate(selectedOrder.createdAt)}</p>
-                <p>Status: 
-                  <span style={{
-                    backgroundColor: statusColors[selectedOrder.status] || '#9e9e9e',
-                    color: 'white',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontSize: '0.8em',
-                    marginLeft: '10px'
-                  }}>
-                    {getStatusLabel(selectedOrder.status)}
-                  </span>
-                </p>
-              </div>
-              
-              <div style={{ marginBottom: '20px' }}>
-                <h4>Items</h4>
-                {selectedOrder.items.map((item, index) => (
-                  <div 
-                    key={index} 
-                    style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between',
-                      padding: '10px 0',
-                      borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #eee' : 'none'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: '#f5f5f5',
-                        borderRadius: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: '10px'
-                      }}>
-                        {item.image ? (
-                          <img 
-                            src={item.image} 
-                            alt={item.name} 
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} 
-                          />
-                        ) : (
-                          <span style={{ fontSize: '0.8em' }}>📦</span>
-                        )}
-                      </div>
-                      <div>
-                        <p style={{ margin: 0 }}>{item.name}</p>
-                        <p style={{ margin: 0, fontSize: '0.9em', color: '#666' }}>
-                          Qty: {item.quantity}
-                        </p>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ margin: 0 }}>{formatINR(item.price * item.quantity)}</p>
-                      <p style={{ margin: 0, fontSize: '0.9em', color: '#666' }}>
-                        {formatINR(item.price)} each
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between',
-                borderTop: '1px solid #eee',
-                paddingTop: '15px'
-              }}>
-                <div>
-                  <p>Subtotal</p>
-                  <p>Shipping</p>
-                  <p>Tax</p>
-                  <p style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Total</p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <p>{formatINR(selectedOrder.subtotal)}</p>
-                  <p>FREE</p>
-                  <p>{formatINR(selectedOrder.tax)}</p>
-                  <p style={{ fontWeight: 'bold', fontSize: '1.1em' }}>{formatINR(selectedOrder.total)}</p>
-                </div>
-              </div>
-              
-              <div style={{ marginTop: '20px' }}>
-                <h4>Shipping Address</h4>
-                <div style={{ 
-                  background: '#f9f9f9', 
-                  padding: '15px', 
-                  borderRadius: '4px'
-                }}>
-                  <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>
-                    {selectedOrder.shippingAddress.fullName}
-                  </p>
-                  <p style={{ margin: '5px 0' }}>
-                    {selectedOrder.shippingAddress.addressLine1}
-                    {selectedOrder.shippingAddress.addressLine2 && (
-                      <>, {selectedOrder.shippingAddress.addressLine2}</>
-                    )}
-                  </p>
-                  <p style={{ margin: '5px 0' }}>
-                    {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.postalCode}
-                  </p>
-                  <p style={{ margin: '5px 0 0 0' }}>
-                    Phone: {selectedOrder.shippingAddress.phone}
-                  </p>
-                </div>
-              </div>
-              
-              {selectedOrder.statusHistory && selectedOrder.statusHistory.length > 1 && (
-                <div style={{ marginTop: '20px' }}>
-                  <h4>Status History</h4>
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    gap: '10px'
-                  }}>
-                    {[...selectedOrder.statusHistory].reverse().map((history, index) => (
-                      <div 
-                        key={index} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center',
-                          padding: '10px',
-                          background: '#f9f9f9',
-                          borderRadius: '4px'
-                        }}
-                      >
-                        <div style={{
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          background: statusColors[history.status] || '#9e9e9e',
-                          marginRight: '10px'
-                        }}></div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ margin: 0, fontWeight: 'bold' }}>
-                            {getStatusLabel(history.status)}
-                          </p>
-                          <p style={{ margin: '3px 0 0 0', fontSize: '0.9em', color: '#666' }}>
-                            {formatDate(history.timestamp)} at {new Date(history.timestamp).toLocaleTimeString()}
-                          </p>
-                          {history.note && (
-                            <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', fontStyle: 'italic' }}>
-                              "{history.note}"
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>

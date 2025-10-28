@@ -6,8 +6,10 @@ import {
   getUserOrders, 
   getUserNotifications,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  getUserOrderById
 } from "../controllers/orders.controller.js";
+import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
@@ -17,11 +19,14 @@ router.get("/orders", getAllOrders);
 // Get order by ID (admin only)
 router.get("/orders/:id", getOrderById);
 
+// Get order by ID for regular users
+router.get("/orders/:id/user", protect, getUserOrderById);
+
 // Update order status (admin only)
 router.patch("/orders/:id/status", updateOrderStatus);
 
 // Get user orders
-router.get("/user-orders/:userId", getUserOrders);
+router.get("/user-orders/:userId", protect, getUserOrders);
 
 // Get user notifications
 router.get("/user-notifications/:userEmail", getUserNotifications);

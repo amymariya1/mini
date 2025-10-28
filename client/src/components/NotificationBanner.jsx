@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { fetchUserNotifications, markAllNotificationsAsRead } from '../services/api';
 
 const NotificationBanner = () => {
   const [notifications, setNotifications] = useState([]);
@@ -26,12 +27,11 @@ const NotificationBanner = () => {
 
     const fetchNotifications = async () => {
       try {
-        // Fetch notifications from server
-        const response = await fetch(`http://localhost:5002/api/user-notifications/${userEmail}`);
-        const data = await response.json();
+        // Fetch notifications from server using API service
+        const response = await fetchUserNotifications(userEmail);
         
-        if (data.success && data.notifications.length > 0) {
-          setNotifications(data.notifications);
+        if (response.success && response.notifications.length > 0) {
+          setNotifications(response.notifications);
           setVisible(true);
         }
       } catch (error) {
@@ -50,14 +50,8 @@ const NotificationBanner = () => {
 
   const clearNotifications = async () => {
     try {
-      // Mark all notifications as read
-      await fetch('http://localhost:5002/api/notifications/read-all', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userEmail })
-      });
+      // Mark all notifications as read using API service
+      await markAllNotificationsAsRead(userEmail);
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }

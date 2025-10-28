@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const notificationSchema = new mongoose.Schema({
   userId: { type: String, required: true, index: true },
   userEmail: { type: String, required: true },
-  orderId: { type: String, required: true },
+  orderId: { type: String }, // Made optional
   message: { type: String, required: true },
   type: { 
     type: String, 

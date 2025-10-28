@@ -4,65 +4,113 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import "../App.css";
 import { formatINR } from "../utils/currency";
-
-// Mock order data - in a real app this would come from an API
-const mockOrders = [
-  {
-    id: "ORD-001",
-    date: "2023-06-15",
-    status: "Delivered",
-    total: 2499,
-    items: [
-      {
-        id: "1",
-        name: "Meditation Cushion",
-        price: 1299,
-        quantity: 1,
-        image: "🧘"
-      },
-      {
-        id: "2",
-        name: "Aromatherapy Diffuser",
-        price: 1199,
-        quantity: 1,
-        image: "🕯️"
-      }
-    ]
-  },
-  {
-    id: "ORD-002",
-    date: "2023-05-22",
-    status: "Shipped",
-    total: 899,
-    items: [
-      {
-        id: "3",
-        name: "Sleep Mask",
-        price: 899,
-        quantity: 1,
-        image: "😴"
-      }
-    ]
-  }
-];
+import { fetchUserOrders as getUserOrders } from "../services/api";
 
 export default function OrderHistory() {
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userId, setUserId] = useState(null);
   const navigate = useNavigate();
 
+  // Get user ID from localStorage
   useEffect(() => {
-    // In a real app, this would fetch from an API
-    setOrders(mockOrders);
+    try {
+      const userRaw = localStorage.getItem('mm_user');
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        if (user?.id) {
+          setUserId(user.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error getting user data:', error);
+    }
   }, []);
+
+  // Fetch user orders
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!userId) return;
+      
+      try {
+        setLoading(true);
+        const response = await getUserOrders(userId);
+        if (response.success) {
+          setOrders(response.orders);
+        } else {
+          setError(response.message || 'Failed to fetch orders');
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        setError('Failed to fetch orders. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userId) {
+      fetchOrders();
+    }
+  }, [userId]);
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "Delivered": return "#10b981";
-      case "Shipped": return "#3b82f6";
-      case "Processing": return "#f59e0b";
-      default: return "#6b7280";
+      case "Delivered": 
+      case "delivered": 
+        return "#10b981";
+      case "Shipped": 
+      case "shipped": 
+        return "#3b82f6";
+      case "Processing": 
+      case "processing": 
+        return "#f59e0b";
+      case "Confirmed": 
+      case "confirmed": 
+        return "#2196f3";
+      case "Pending": 
+      case "pending": 
+        return "#ff9800";
+      case "Cancelled": 
+      case "cancelled": 
+        return "#f44336";
+      default: 
+        return "#6b7280";
     }
   };
+
+  if (loading) {
+    return (
+      <div className="shopping-page">
+        <Navbar />
+        <div className="shopping-container">
+          <div className="loading-container">
+            <p>Loading your orders...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="shopping-page">
+        <Navbar />
+        <div className="shopping-container">
+          <div className="error-container">
+            <h3>Error</h3>
+            <p>{error}</p>
+            <button 
+              className="cta-btn" 
+              onClick={() => window.location.reload()}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="shopping-page">
@@ -96,7 +144,7 @@ export default function OrderHistory() {
           <div className="orders-list">
             {orders.map((order) => (
               <motion.div
-                key={order.id}
+                key={order._id}
                 className="order-card"
                 style={{
                   background: '#fff',
@@ -118,9 +166,9 @@ export default function OrderHistory() {
                   marginBottom: '16px'
                 }}>
                   <div>
-                    <h3 style={{ margin: 0 }}>Order #{order.id}</h3>
+                    <h3 style={{ margin: 0 }}>Order #{order.orderId}</h3>
                     <p style={{ margin: '4px 0 0 0', color: '#666' }}>
-                      {new Date(order.date).toLocaleDateString()}
+                      {new Date(order.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   <div>
@@ -132,14 +180,14 @@ export default function OrderHistory() {
                       color: '#fff',
                       background: getStatusColor(order.status)
                     }}>
-                      {order.status}
+                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                     </span>
                   </div>
                 </div>
                 
                 <div className="order-items">
                   {order.items.map((item) => (
-                    <div key={item.id} className="order-item" style={{
+                    <div key={item._id || item.productId} className="order-item" style={{
                       display: 'flex',
                       alignItems: 'center',
                       padding: '12px 0',
@@ -156,7 +204,7 @@ export default function OrderHistory() {
                         marginRight: '16px',
                         fontSize: '24px'
                       }}>
-                        {item.image}
+                        {item.image || '📦'}
                       </div>
                       <div className="item-details" style={{ flex: 1 }}>
                         <h4 style={{ margin: 0, fontSize: '16px' }}>{item.name}</h4>
@@ -182,14 +230,14 @@ export default function OrderHistory() {
                   <div>
                     <button 
                       className="secondary-btn"
-                      onClick={() => alert(`Viewing details for order ${order.id}`)}
+                      onClick={() => navigate(`/orders/${order._id}`)}
                       style={{ marginRight: '8px' }}
                     >
                       View Details
                     </button>
                     <button 
                       className="cta-btn"
-                      onClick={() => alert(`Reordering items from order ${order.id}`)}
+                      onClick={() => alert(`Reordering items from order ${order.orderId}`)}
                     >
                       Reorder
                     </button>
