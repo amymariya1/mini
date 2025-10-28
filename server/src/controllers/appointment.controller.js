@@ -3,7 +3,7 @@ import User from "../models/User.js";
 import Leave from "../models/Leave.js";
 import TherapistSchedule from "../models/TherapistSchedule.js";
 import mongoose from "mongoose";
-import { sendBookingConfirmationEmail, sendAppointmentInvoiceEmail } from "../utils/mailer.js";
+import { sendBookingConfirmationEmail, sendAppointmentInvoiceEmail, sendCancellationEmail } from "../utils/mailer.js";
 
 // Set therapist availability for a specific date
 export async function setAvailability(req, res) {
@@ -790,6 +790,37 @@ export async function cancelAppointment(req, res) {
     appointment.updatedAt = Date.now();
     
     await appointment.save();
+    
+    // Send cancellation email with refund details if this was a paid appointment
+    if (appointment.paymentId) {
+      try {
+        // Get user and therapist details
+        const user = await User.findById(appointment.userId);
+        const therapist = await User.findById(appointment.therapistId);
+        
+        if (user && therapist) {
+          const formattedDate = new Date(appointment.date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          
+          await sendCancellationEmail(user.email, {
+            patientName: user.name,
+            therapistName: therapist.name,
+            appointmentDate: formattedDate,
+            appointmentTime: appointment.timeSlot,
+            reason: "Cancelled by user",
+            amount: appointment.amount,
+            refundId: `REF-${Date.now()}-${appointment._id.toString().slice(-6)}`
+          });
+        }
+      } catch (emailError) {
+        console.error("Error sending cancellation email:", emailError);
+        // Don't fail the entire operation if email fails
+      }
+    }
     
     res.status(200).json({ 
       success: true, 

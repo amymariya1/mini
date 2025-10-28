@@ -212,7 +212,9 @@ export async function createCancellation(req, res) {
             therapistName: therapist.name,
             appointmentDate: formattedOriginalDate,
             appointmentTime: appointment.timeSlot,
-            reason: reason || "Cancelled by therapist"
+            reason: reason || "Cancelled by therapist",
+            amount: appointment.amount,
+            refundId: `REF-${Date.now()}-${appointment._id.toString().slice(-6)}`
           });
 
           // Update cancellation record to indicate email was sent
@@ -444,7 +446,9 @@ export async function cancelAppointmentsByCriteria(req, res) {
                   therapistName: therapist.name,
                   appointmentDate: formattedOriginalDate,
                   appointmentTime: appointment.timeSlot,
-                  reason: reason || "Cancelled by therapist"
+                  reason: reason || "Cancelled by therapist",
+                  amount: appointment.amount,
+                  refundId: `REF-${Date.now()}-${appointment._id.toString().slice(-6)}`
                 });
 
                 // Update cancellation record to indicate email was sent

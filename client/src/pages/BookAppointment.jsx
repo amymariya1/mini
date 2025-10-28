@@ -9,7 +9,8 @@ import {
   getUserAppointments, 
   getAvailableTimeSlots, 
   sendMessage, 
-  getChatHistory 
+  getChatHistory,
+  cancelAppointment 
 } from '../services/api';
 import { displayRazorpay } from '../utils/razorpay'; // Add this import
 import { 
@@ -59,6 +60,7 @@ export default function BookAppointment() {
   const [sortBy, setSortBy] = useState('rating');
   const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const currentUser = JSON.parse(localStorage.getItem('mm_user'));
@@ -262,6 +264,29 @@ export default function BookAppointment() {
       case 'cancelled': return <FaTimes />;
       case 'rescheduled': return <FaCalendarAlt />;
       default: return <FaClock />;
+    }
+  };
+
+  const handleCancelAppointment = async (appointmentId) => {
+    if (!window.confirm("Are you sure you want to cancel this appointment? A refund will be processed to your original payment method.")) {
+      return;
+    }
+
+    setCancelling(true);
+    try {
+      const response = await cancelAppointment(appointmentId);
+      if (response.success) {
+        alert("Appointment cancelled successfully. A refund email with details has been sent to your email address.");
+        // Refresh appointments
+        fetchData();
+      } else {
+        throw new Error(response.message || "Failed to cancel appointment");
+      }
+    } catch (err) {
+      console.error("Error cancelling appointment:", err);
+      alert("Failed to cancel appointment. Please try again.");
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -921,6 +946,31 @@ export default function BookAppointment() {
                           >
                             <FaComment />
                             Chat with Therapist
+                          </motion.button>
+                          
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleCancelAppointment(appointment._id)}
+                            disabled={cancelling}
+                            style={{
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              padding: '12px 24px',
+                              borderRadius: '10px',
+                              fontSize: '1rem',
+                              fontWeight: 600,
+                              cursor: cancelling ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              boxShadow: '0 4px 16px rgba(239, 68, 68, 0.3)',
+                              opacity: cancelling ? 0.7 : 1
+                            }}
+                          >
+                            <FaTimes />
+                            {cancelling ? 'Cancelling...' : 'Cancel Appointment'}
                           </motion.button>
                         </div>
                       </motion.div>

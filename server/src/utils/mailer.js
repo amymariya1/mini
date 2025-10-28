@@ -1330,6 +1330,12 @@ export async function sendCancellationEmail(to, cancellationDetails) {
           </div>
           
           <div class="section">
+            <div class="section-title">💰 Refund Information</div>
+            <p>A full refund of ₹${cancellationDetails.amount?.toFixed(2) || '1000.00'} will be processed to your original payment method within 5-7 business days.</p>
+            <p>Refund Reference ID: ${cancellationDetails.refundId || 'REF-' + Date.now()}</p>
+          </div>
+          
+          <div class="section">
             <div class="section-title">🔁 Next Steps</div>
             <p>Please contact your therapist or our support team to reschedule this appointment at your convenience.</p>
             <p>If you have any questions or concerns, please don't hesitate to reach out to us.</p>
@@ -1360,6 +1366,10 @@ Time: ${cancellationDetails.appointmentTime}
 
 Cancellation Reason:
 ${cancellationDetails.reason}
+
+Refund Information:
+A full refund of ₹${cancellationDetails.amount?.toFixed(2) || '1000.00'} will be processed to your original payment method within 5-7 business days.
+Refund Reference ID: ${cancellationDetails.refundId || 'REF-' + Date.now()}
 
 Next Steps:
 Please contact your therapist or our support team to reschedule this appointment at your convenience.
