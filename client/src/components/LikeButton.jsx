@@ -12,10 +12,11 @@ const LikeButton = ({
   const [isLiked, setIsLiked] = useState(initialLiked);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [isLoading, setIsLoading] = useState(false);
+  
   const isAuthenticated = () => {
     try {
       const user = JSON.parse(localStorage.getItem('mm_user') || '{}');
-      return !!user?._id || !!user?.id;
+      return !!(user?._id || user?.id);
     } catch (e) {
       return false;
     }
@@ -33,6 +34,7 @@ const LikeButton = ({
   const handleLike = async () => {
     if (!isAuthenticated()) {
       // Optionally: Show login modal or redirect to login
+      alert('Please log in to like posts');
       return;
     }
 
@@ -48,11 +50,6 @@ const LikeButton = ({
     try {
       const response = await toggleLike(postId);
       
-      // If there was an error, revert the optimistic update
-      if (!response) {
-        throw new Error('Failed to update like');
-      }
-      
       // Update with server response
       setIsLiked(response.liked);
       setLikeCount(response.likeCount);
@@ -62,6 +59,7 @@ const LikeButton = ({
       console.error('Error toggling like:', error);
       setIsLiked(wasLiked);
       setLikeCount(wasLiked ? likeCount : Math.max(0, likeCount - 1));
+      alert('Failed to like post. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -69,49 +67,63 @@ const LikeButton = ({
 
   const sizes = {
     small: {
-      button: 'p-1',
-      icon: 'w-4 h-4',
-      text: 'text-xs'
+      padding: '4px',
+      iconSize: '16px',
+      fontSize: '12px'
     },
     medium: {
-      button: 'p-2',
-      icon: 'w-5 h-5',
-      text: 'text-sm'
+      padding: '8px',
+      iconSize: '20px',
+      fontSize: '14px'
     },
     large: {
-      button: 'p-3',
-      icon: 'w-6 h-6',
-      text: 'text-base'
+      padding: '12px',
+      iconSize: '24px',
+      fontSize: '16px'
     }
   };
 
-  const { button: buttonSize, icon: iconSize, text: textSize } = sizes[size] || sizes.medium;
+  const sizeConfig = sizes[size] || sizes.medium;
 
   return (
     <button
       onClick={handleLike}
-      disabled={isLoading || !isAuthenticated}
-      className={`flex items-center gap-1.5 rounded-full transition-colors ${
-        isLiked 
-          ? 'text-red-500 hover:text-red-600' 
-          : 'text-gray-500 hover:text-gray-700'
-      } ${buttonSize} ${
-        !isAuthenticated ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
-      }`}
+      disabled={isLoading || !isAuthenticated()}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: sizeConfig.padding,
+        borderRadius: '50%',
+        background: 'transparent',
+        border: 'none',
+        cursor: (isLoading || !isAuthenticated()) ? 'not-allowed' : 'pointer',
+        color: isLiked ? '#ef4444' : '#6b7280',
+        opacity: isAuthenticated() ? 1 : 0.5,
+        transition: 'color 0.2s ease'
+      }}
       aria-label={isLiked ? 'Unlike this post' : 'Like this post'}
     >
       <svg 
-        className={`${iconSize} ${isLiked ? 'fill-current' : 'fill-none'} stroke-current`} 
-        viewBox="0 0 24 24" 
-        strokeWidth="2"
-        strokeLinecap="round" 
-        strokeLinejoin="round"
+        style={{
+          width: sizeConfig.iconSize,
+          height: sizeConfig.iconSize,
+          fill: isLiked ? 'currentColor' : 'none',
+          stroke: 'currentColor',
+          strokeWidth: '2',
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round'
+        }}
+        viewBox="0 0 24 24"
       >
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
       </svg>
       
       {showCount && likeCount > 0 && (
-        <span className={`${textSize} font-medium`}>
+        <span style={{
+          fontSize: sizeConfig.fontSize,
+          fontWeight: '600'
+        }}>
           {likeCount}
         </span>
       )}

@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from '../components/Navbar';
-import { listPosts, listMyPosts, createUserPost, addComment, deleteMyPost } from '../services/api';
+import { listPosts, listMyPosts, createUserPost, addComment, deleteMyPost, likePost } from '../services/api';
 import { getLikeStatus } from '../services/likeService';
 import LikeButton from '../components/LikeButton';
+import CommentForm from '../components/CommentForm';
+import BlogComments from '../components/BlogComments';
 import { auth } from '../services/firebase';
 import { FaSearch, FaFilter, FaSort, FaTimes, FaFire, FaThumbsUp, FaClock } from 'react-icons/fa';
 
@@ -340,60 +342,51 @@ export default function Blog() {
       // Optimistic update
       handleLikeChange(postId, newLiked, newLikeCount);
       
-      // Call the API
-      const response = await fetch(`/api/posts/${postId}/like`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      // Call the API using the service function
+      const response = await likePost(postId);
       
-      if (!response.ok) {
-        throw new Error('Failed to update like');
-      }
-      
-      const data = await response.json();
       // Final update with server data
-      handleLikeChange(postId, data.liked, data.likeCount);
+      handleLikeChange(postId, response.liked, response.likeCount);
       
     } catch (error) {
       console.error('Error toggling like:', error);
       // Revert optimistic update on error
       const currentStatus = likeStatus[postId] || { liked: false, likeCount: 0 };
       handleLikeChange(postId, !currentStatus.liked, currentStatus.likeCount);
+      alert('Failed to like post. Please try again.');
     }
   };
 
 
-  const handleAddComment = async (postId) => {
-    const comment = commentById[postId];
-    if (!comment?.trim()) return;
+  const handleAddComment = async (postId, commentText) => {
+    if (!commentText?.trim()) return;
 
     try {
-      await addComment(postId, comment.trim());
+      const newComment = await addComment(postId, commentText.trim());
       
       // Update posts with new comment
-      const newComment = {
-        author: { name: 'You' },
-        text: comment.trim(),
-        createdAt: new Date()
+      const commentToAdd = {
+        author: newComment.comment?.author || null,
+        authorName: newComment.comment?.authorName || 'User',
+        text: commentText.trim(),
+        createdAt: newComment.comment?.createdAt || new Date()
       };
       
       setPosts(prev => prev.map(p => 
-        p._id === postId || p.id === postId 
-          ? { ...p, comments: [...(p.comments || []), newComment] }
+        (p._id === postId || p.id === postId) 
+          ? { ...p, comments: [...(p.comments || []), commentToAdd] }
           : p
       ));
       setMyPosts(prev => prev.map(p => 
-        p._id === postId || p.id === postId 
-          ? { ...p, comments: [...(p.comments || []), newComment] }
+        (p._id === postId || p.id === postId) 
+          ? { ...p, comments: [...(p.comments || []), commentToAdd] }
           : p
       ));
       
-      setCommentById(prev => ({ ...prev, [postId]: '' }));
+      return newComment;
     } catch (err) {
       console.error('Error adding comment:', err);
+      throw err;
     }
   };
 
@@ -1168,6 +1161,14 @@ export default function Blog() {
                                 </div>
                               </div>
                               <div style={{ color: '#374151', lineHeight: '1.5' }}>{snippet}</div>
+                              {/* Comments Section */}
+                              {showCommentsFor[id] && (
+                                <BlogComments
+                                  postId={id}
+                                  comments={p.comments || []}
+                                  onAddComment={handleAddComment}
+                                />
+                              )}
                             </div>
                               </div>
                         </motion.article>
@@ -1345,34 +1346,17 @@ export default function Blog() {
                               
                               {/* Action Buttons */}
                               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                                <motion.button
-                                  type="button"
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={() => handleLike(id)}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 16px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #e5e7eb',
-                                    background: 'white',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    fontWeight: 500,
-                                    color: '#374151',
-                                    transition: 'all 0.2s'
-                                  }}
-                                >
-                                  <span style={{ fontSize: '1.1rem' }}>❤️</span>
-                                  <span>{p.likedBy?.length || 0}</span>
-                                </motion.button>
+                                <LikeButton 
+                                  postId={id}
+                                  initialLiked={likeStatus[id]?.liked || false}
+                                  initialLikeCount={likeStatus[id]?.likeCount || p.likedBy?.length || 0}
+                                  size="medium"
+                                  showCount={true}
+                                  onLikeChange={(liked, count) => handleLikeChange(id, liked, count)}
+                                />
 
-                                <motion.button
+                                <button
                                   type="button"
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
                                   onClick={() => setShowCommentsFor(prev => ({ ...prev, [id]: !prev[id] }))}
                                   style={{
                                     display: 'flex',
@@ -1391,10 +1375,19 @@ export default function Blog() {
                                 >
                                   <span style={{ fontSize: '1.1rem' }}>💬</span>
                                   <span>{p.comments?.length || 0}</span>
-                                </motion.button>
+                                </button>
                               </div>
-                                  </div>
-                                          </div>
+
+                              {/* Comments Section */}
+                              {showCommentsFor[id] && (
+                                <BlogComments
+                                  postId={id}
+                                  comments={p.comments || []}
+                                  onAddComment={handleAddComment}
+                                />
+                              )}
+                            </div>
+                          </div>
                         </motion.article>
                       );
                     })}
@@ -1407,7 +1400,7 @@ export default function Blog() {
             {/* Add Post View */}
             {activeView === 'add' && (
               <section style={{ 
-                minHeight: 600,
+                minHeight: 400,
                 background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
                 borderRadius: '20px',
                 padding: '32px',
@@ -1433,7 +1426,7 @@ export default function Blog() {
                     display: 'flex', 
                     alignItems: 'center', 
                     gap: '16px', 
-                    marginBottom: '32px',
+                    marginBottom: '24px',
                     paddingBottom: '16px',
                     borderBottom: '2px solid #f1f5f9'
                   }}>
@@ -1448,7 +1441,7 @@ export default function Blog() {
                       fontSize: '1.4rem',
                       boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
                     }}>
-                      ✍️
+                      ✒️
                     </div>
                     <div>
                       <h3 style={{ 
@@ -1458,323 +1451,161 @@ export default function Blog() {
                         color: '#1e293b',
                         letterSpacing: '-0.025em'
                       }}>
-                        Create New Post
+                        Write a Post
                       </h3>
                       <p style={{ 
                         margin: '4px 0 0 0', 
                         color: '#64748b', 
                         fontSize: '1rem' 
                       }}>
-                        Share your thoughts with the community
+                        Share your insights and connect with the community
                       </p>
                     </div>
                   </div>
-                <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 24 }}>
-                  <div>
-                    <label style={{ 
-                      display: 'block',
-                      fontSize: '1rem', 
-                      marginBottom: '8px', 
-                      fontWeight: 600,
-                      color: '#374151'
-                    }}>
-                      Post Title
-                    </label>
-                    <input
-                      type="text"
-                      name="title"
-                      value={form.title}
-                      onChange={handleChange}
-                      className="input"
-                      placeholder="Enter a compelling title for your post..."
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        borderRadius: '12px',
-                        border: '2px solid #e5e7eb',
-                        fontSize: '1rem',
-                        transition: 'all 0.3s ease',
-                        background: '#ffffff',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)'
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ 
-                      display: 'block',
-                      fontSize: '1rem', 
-                      marginBottom: '8px', 
-                      fontWeight: 600,
-                      color: '#374151'
-                    }}>
-                      Post Content
-                    </label>
-                    <textarea
-                      name="content"
-                      value={form.content}
-                      onChange={handleChange}
-                      className="input"
-                      rows={8}
-                      placeholder="Share your thoughts, experiences, or insights with the community..."
-                          style={{
-                            width: '100%',
-                        padding: '16px',
-                        borderRadius: '12px',
-                        border: '2px solid #e5e7eb',
-                        fontSize: '1rem',
-                        transition: 'all 0.3s ease',
-                        background: '#ffffff',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
-                        resize: 'vertical',
-                        minHeight: '200px',
-                        lineHeight: '1.6'
-                      }}
-                    />
+                  
+                  <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '24px' }}>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <label style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>Title</label>
+                      <input
+                        type="text"
+                        name="title"
+                        value={form.title}
+                        onChange={handleChange}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          background: 'white',
+                          fontSize: '1rem',
+                          color: '#374151',
+                          transition: 'border-color 0.2s',
+                          ':focus': {
+                            borderColor: '#667eea',
+                            outline: 'none'
+                          }
+                        }}
+                      />
                     </div>
                     
-                  <div>
-                    <label style={{ 
-                      display: 'block',
-                      fontSize: '1rem', 
-                      marginBottom: '8px', 
-                      fontWeight: 600,
-                      color: '#374151'
-                    }}>
-                      Tags (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      name="tags"
-                      value={form.tags}
-                      onChange={handleChange}
-                      className="input"
-                      placeholder="Enter tags separated by commas (e.g., wellness, mental-health, tips)"
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        borderRadius: '12px',
-                        border: '2px solid #e5e7eb',
-                        fontSize: '1rem',
-                        transition: 'all 0.3s ease',
-                        background: '#ffffff',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
-                        marginBottom: '24px'
-                      }}
-                    />
-                  </div>
-
-                  {/* Image Upload Section */}
-                  <div>
-                    <label style={{ 
-                      display: 'block',
-                      fontSize: '1rem', 
-                      marginBottom: '12px', 
-                      fontWeight: 600,
-                      color: '#374151'
-                    }}>
-                      Featured Image
-                    </label>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <label style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>Content</label>
+                      <textarea
+                        name="content"
+                        value={form.content}
+                        onChange={handleChange}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          background: 'white',
+                          fontSize: '1rem',
+                          color: '#374151',
+                          transition: 'border-color 0.2s',
+                          ':focus': {
+                            borderColor: '#667eea',
+                            outline: 'none'
+                          }
+                        }}
+                      />
+                    </div>
                     
-                    <div style={{ 
-                      border: '2px dashed #e5e7eb',
-                      borderRadius: '12px',
-                      padding: '24px',
-                      textAlign: 'center',
-                      marginBottom: '16px',
-                      backgroundColor: '#f9fafb',
-                      transition: 'all 0.3s ease'
-                    }}>
-                      {thumbPreview ? (
-                        <div>
-                          <div style={{ 
-                            width: '100%', 
-                            maxWidth: '300px', 
-                            height: '200px', 
-                            margin: '0 auto 16px',
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <label style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>Tags (comma-separated)</label>
+                      <input
+                        type="text"
+                        name="tags"
+                        value={form.tags}
+                        onChange={handleChange}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          background: 'white',
+                          fontSize: '1rem',
+                          color: '#374151',
+                          transition: 'border-color 0.2s',
+                          ':focus': {
+                            borderColor: '#667eea',
+                            outline: 'none'
+                          }
+                        }}
+                      />
+                    </div>
+                    
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <label style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>Cover Image</label>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <input
+                          type="text"
+                          value={thumbUrl}
+                          onChange={handleThumbUrlChange}
+                          placeholder="Enter image URL"
+                          style={{
+                            padding: '12px 16px',
                             borderRadius: '8px',
-                            overflow: 'hidden',
-                            position: 'relative',
-                            border: '1px solid #e5e7eb'
-                          }}>
-                            <img 
-                              src={thumbPreview} 
-                              alt="Preview" 
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                objectFit: 'cover' 
-                              }} 
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setThumbPreview('');
-                                setThumbDataUrl('');
-                                setThumbUrl('');
-                                setSelectedFile(null);
-                                if (document.getElementById('file-upload')) {
-                                  document.getElementById('file-upload').value = '';
-                                }
-                              }}
-                              style={{
-                                position: 'absolute',
-                                top: '8px',
-                                right: '8px',
-                                background: 'rgba(0,0,0,0.6)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '50%',
-                                width: '28px',
-                                height: '28px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                fontSize: '14px'
-                              }}
-                            >
-                              ×
-                            </button>
-                          </div>
-                          <div style={{ color: '#4b5563', marginBottom: '16px' }}>
-                            {selectedFile ? selectedFile.name : 'Image selected'}
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <div style={{ 
-                            fontSize: '48px',
-                            color: '#9ca3af',
-                            marginBottom: '12px'
-                          }}>
-                            📷
-                          </div>
-                          <p style={{ 
+                            border: '1px solid #e5e7eb',
+                            background: 'white',
                             fontSize: '1rem',
-                            color: '#6b7280',
-                            marginBottom: '16px'
-                          }}>
-                            Drag & drop an image here, or click to select
-                          </p>
+                            color: '#374151',
+                            transition: 'border-color 0.2s',
+                            ':focus': {
+                              borderColor: '#667eea',
+                              outline: 'none'
+                            }
+                          }}
+                        />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          style={{
+                            padding: '12px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            background: 'white',
+                            fontSize: '1rem',
+                            color: '#374151',
+                            transition: 'border-color 0.2s',
+                            ':focus': {
+                              borderColor: '#667eea',
+                              outline: 'none'
+                            }
+                          }}
+                        />
+                      </div>
+                      {thumbPreview && (
+                        <div style={{ width: '100%', height: 100, borderRadius: 12, overflow: 'hidden', background: '#f7f7f7' }}>
+                          <img alt="Preview" src={thumbPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                         </div>
                       )}
-                      
-                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                        <label
-                          htmlFor="file-upload"
-                          style={{
-                            padding: '10px 20px',
-                            borderRadius: '8px',
-                            background: '#f3f4f6',
-                            color: '#4b5563',
-                            fontSize: '0.9rem',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            border: '1px solid #e5e7eb',
-                            transition: 'all 0.2s',
-                            display: 'inline-block',
-                            textAlign: 'center'
-                          }}
-                        >
-                          {thumbPreview ? 'Change Image' : 'Upload Image'}
-                          <input
-                            id="file-upload"
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileChange}
-                            style={{ display: 'none' }}
-                          />
-                        </label>
-                        
-                        {!thumbPreview && (
-                          <div style={{ position: 'relative' }}>
-                            <input
-                              type="text"
-                              value={thumbUrl}
-                              onChange={handleThumbUrlChange}
-                              placeholder="Or paste image URL"
-                              style={{
-                                padding: '10px 16px',
-                                borderRadius: '8px',
-                                border: '1px solid #e5e7eb',
-                                fontSize: '0.9rem',
-                                width: '220px',
-                                transition: 'all 0.2s'
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                      
-                      <p style={{ 
-                        fontSize: '0.75rem',
-                        color: '#9ca3af',
-                        margin: '12px 0 0',
-                        fontStyle: 'italic'
-                      }}>
-                        Recommended size: 1200×630px (Max 5MB)
-                      </p>
                     </div>
-                  </div>
-
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'flex-end', 
-                    gap: '16px',
-                    marginTop: '24px',
-                    paddingTop: '16px',
-                    borderTop: '1px solid #e5e7eb'
-                  }}>
-                    <motion.button
-                      type="button"
-                      onClick={() => setActiveView('my')}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      style={{
-                        padding: '12px 24px',
-                        borderRadius: '12px',
-                        border: '2px solid #e5e7eb',
-                        background: 'transparent',
-                        color: '#6b7280',
-                        fontSize: '1rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease'
-                      }}
-                    >
-                      Cancel
-                    </motion.button>
                     
-                    <motion.button
+                    <button
                       type="submit"
                       disabled={submitting}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
                       style={{
-                        padding: '12px 32px',
+                        padding: '14px 18px',
                         borderRadius: '12px',
                         border: 'none',
-                        background: submitting 
-                          ? '#9ca3af' 
-                          : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                         color: 'white',
                         fontSize: '1rem',
                         fontWeight: 600,
-                        cursor: submitting ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.3s ease',
-                        boxShadow: submitting 
-                          ? 'none' 
-                          : '0 4px 12px rgba(102, 126, 234, 0.3)'
+                        cursor: 'pointer',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                        ':disabled': {
+                          background: '#e5e7eb',
+                          cursor: 'not-allowed'
+                        }
                       }}
                     >
-                      {submitting ? 'Publishing...' : 'Publish Post'}
-                    </motion.button>
-                  </div>
-                </form>
-              </div>
-            </section>
-          )}
+                      {submitting ? 'Submitting...' : 'Submit Post'}
+                    </button>
+                  </form>
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </main>
