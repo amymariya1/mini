@@ -13,6 +13,7 @@ export default function Logout() {
       } catch (_) {}
       try {
         localStorage.removeItem("mm_user");
+        localStorage.removeItem("mm_token"); // Remove JWT token
       } catch (_) {}
       navigate("/login", { replace: true });
     })();

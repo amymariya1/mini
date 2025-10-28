@@ -128,8 +128,12 @@ export default function TherapistDashboard() {
       const response = await getTherapistAppointments(user.id);
       if (response.success) {
         // Filter appointments to only show those with paymentId (paid appointments)
-        const paidAppointments = response.data.filter(appointment => appointment.paymentId);
-        setAppointments(paidAppointments);
+        // Include both scheduled and rescheduled appointments
+        const relevantAppointments = response.data.filter(appointment => 
+          appointment.paymentId && 
+          (appointment.status === 'scheduled' || appointment.status === 'rescheduled')
+        );
+        setAppointments(relevantAppointments);
       }
     } catch (error) {
       console.error("Error loading appointments:", error);
@@ -612,98 +616,126 @@ export default function TherapistDashboard() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {appointments.map((appointment) => (
-                      <div
-                        key={appointment._id}
-                        style={{
-                          padding: '20px',
-                          borderRadius: '8px',
-                          border: '1px solid #e5e7eb',
-                          background: '#f8fafc'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                              <span style={{ fontSize: '1.5rem' }}>👤</span>
-                              <div>
-                                <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#1e3a8a' }}>
-                                  {appointment.userId?.name || 'Patient'}
-                                </h4>
-                                <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-                                  {appointment.userId?.email}
-                                </p>
+                    {appointments.map((appointment) => {
+                      // Determine status color and text
+                      let statusColor = '#10b981'; // green for scheduled
+                      let statusText = 'Scheduled';
+                      
+                      switch (appointment.status) {
+                        case 'scheduled':
+                          statusColor = '#10b981';
+                          statusText = 'Scheduled';
+                          break;
+                        case 'rescheduled':
+                          statusColor = '#f59e0b';
+                          statusText = 'Rescheduled';
+                          break;
+                        case 'cancelled':
+                          statusColor = '#ef4444';
+                          statusText = 'Cancelled';
+                          break;
+                        case 'completed':
+                          statusColor = '#8b5cf6';
+                          statusText = 'Completed';
+                          break;
+                        default:
+                          statusColor = '#10b981';
+                          statusText = 'Scheduled';
+                      }
+                      
+                      return (
+                        <div
+                          key={appointment._id}
+                          style={{
+                            padding: '20px',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            background: '#f8fafc'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '1.5rem' }}>👤</span>
+                                <div>
+                                  <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#1e3a8a' }}>
+                                    {appointment.userId?.name || 'Patient'}
+                                  </h4>
+                                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                                    {appointment.userId?.email}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: '6px',
-                              background: '#10b981',
-                              color: 'white',
-                              fontWeight: '600',
-                              fontSize: '0.85rem'
-                            }}
-                          >
-                            Scheduled
-                          </div>
-                        </div>
-                        
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                              <span style={{ fontSize: '1.2rem' }}>📅</span>
-                              <span style={{ fontWeight: '600', color: '#1e3a8a' }}>
-                                {new Date(appointment.date).toLocaleDateString('en-US', { 
-                                  weekday: 'short', 
-                                  year: 'numeric', 
-                                  month: 'short', 
-                                  day: 'numeric' 
-                                })}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '1.2rem' }}>🕐</span>
-                              <span style={{ fontWeight: '600', color: '#3b82f6' }}>
-                                {appointment.timeSlot}
-                              </span>
+                            <div
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                background: statusColor,
+                                color: 'white',
+                                fontWeight: '600',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              {statusText}
                             </div>
                           </div>
                           
-                          <div>
-                            {appointment.age && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
+                            <div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '1.2rem' }}>👤</span>
+                                <span style={{ fontSize: '1.2rem' }}>📅</span>
                                 <span style={{ fontWeight: '600', color: '#1e3a8a' }}>
-                                  Age: {appointment.age}
+                                  {new Date(appointment.date).toLocaleDateString('en-US', { 
+                                    weekday: 'short', 
+                                    year: 'numeric', 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                  })}
                                 </span>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {appointment.problem && (
-                          <div style={{ 
-                            marginTop: '12px', 
-                            padding: '12px', 
-                            background: '#fff', 
-                            borderRadius: '6px',
-                            border: '1px solid #e5e7eb'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                              <span style={{ fontSize: '1.2rem' }}>💭</span>
-                              <div style={{ flex: 1 }}>
-                                <strong style={{ color: '#374151', fontSize: '0.9rem' }}>Problem:</strong>
-                                <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                                  {appointment.problem}
-                                </p>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.2rem' }}>🕐</span>
+                                <span style={{ fontWeight: '600', color: '#3b82f6' }}>
+                                  {appointment.timeSlot}
+                                </span>
                               </div>
                             </div>
+                            
+                            <div>
+                              {appointment.age && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                  <span style={{ fontSize: '1.2rem' }}>👤</span>
+                                  <span style={{ fontWeight: '600', color: '#1e3a8a' }}>
+                                    Age: {appointment.age}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          
+                          {appointment.problem && (
+                            <div style={{ 
+                              marginTop: '12px', 
+                              padding: '12px', 
+                              background: '#fff', 
+                              borderRadius: '6px',
+                              border: '1px solid #e5e7eb'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                <span style={{ fontSize: '1.2rem' }}>💭</span>
+                                <div style={{ flex: 1 }}>
+                                  <strong style={{ color: '#374151', fontSize: '0.9rem' }}>Problem:</strong>
+                                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                                    {appointment.problem}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

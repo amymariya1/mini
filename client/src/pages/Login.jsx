@@ -52,10 +52,14 @@ export default function Login() {
       // 2️⃣ USER / THERAPIST LOGIN
       console.log('Attempting user login with email:', form.email);
       const response = await apiLogin(form);
-      console.log('User login successful:', response);
+      console.log('User login response:', response);
+      
+      // Log the keys in the response to see what's there
+      console.log('Response keys:', Object.keys(response));
       
       // Check if this is a success response with user data
       if (response?.user) {
+        console.log('Login: User data found in response');
         // If therapist and not approved, block login and show message
         if (response.user?.userType === "therapist" && response.user?.isApproved === false) {
           setError("Your therapist account is pending admin approval. Please try again later.");
@@ -64,6 +68,19 @@ export default function Login() {
 
         const sessionUser = { ...response.user, authSource: "api" };
         localStorage.setItem("mm_user", JSON.stringify(sessionUser));
+        console.log('Login: User data stored in localStorage');
+        
+        // Store the JWT token for API authentication
+        console.log('Login: Checking for token in response');
+        if (response?.token) {
+          console.log("Login: Token found in response:", response.token);
+          localStorage.setItem("mm_token", response.token);
+          // Verify token was stored
+          const storedToken = localStorage.getItem("mm_token");
+          console.log("Login: Verified token in localStorage:", storedToken);
+        } else {
+          console.log("Login: No token found in response. Response:", response);
+        }
 
         // 🔸 ROUTE BASED ON TYPE OR AGE
         if (response.user?.userType === "therapist") {
@@ -106,6 +123,15 @@ export default function Login() {
         userType = tokenResult?.claims?.userType;
       } catch (_) {}
 
+      // Generate a JWT token for API authentication
+      console.log('Generating JWT token for Google Sign-In user');
+      const tokenResponse = await apiLogin({
+        email: fbUser.email,
+        password: fbUser.uid // Using UID as password for Google Sign-In users
+      });
+      
+      console.log('Token response for Google Sign-In:', tokenResponse);
+      
       const user = {
         id: fbUser.uid,
         name: fbUser.displayName || "",
@@ -117,6 +143,12 @@ export default function Login() {
       };
 
       localStorage.setItem("mm_user", JSON.stringify(user));
+      
+      // Store the JWT token for API authentication
+      if (tokenResponse?.token) {
+        console.log("Storing JWT token for Google Sign-In user:", tokenResponse.token);
+        localStorage.setItem("mm_token", tokenResponse.token);
+      }
 
       // 🔸 ROUTING LOGIC
       if (userType === "therapist") {
@@ -234,11 +266,11 @@ export default function Login() {
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48">
               <path
                 fill="#FFC107"
-                d="M43.611 20.083h-1.611V20H24v8h11.303c-1.648 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.156 7.961 3.039l5.657-5.657C33.643 6.053 29.047 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.651-.389-3.917z"
+                d="M43.611 20.083h-1.611V20H24v8h11.303c-1.648 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12 12-8.955 12-20c0-1.341-.138-2.651-.389-3.917z"
               />
               <path
                 fill="#FF3D00"
-                d="M6.306 14.691l6.571 4.819C14.655 16.108 18.961 14 24 14c3.059 0 5.842 1.156 7.961 3.039l5.657-5.657C33.643 6.053 29.047 4 24 4c-7.798 0-14.426 4.417-17.694 10.691z"
+                d="M6.306 14.691l6.571 4.819C14.655 16.108 18.961 14 24 14c3.059 0 5.842 1.156 7.961 3.039l5.657-5.657C33.643 6.053 29.047 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.651-.389-3.917z"
               />
               <path
                 fill="#4CAF50"

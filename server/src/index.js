@@ -5,12 +5,18 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import dotenv from "dotenv";
 
-// Load environment variables
-dotenv.config();
-
-// ES module workaround for __dirname
+// Load environment variables with explicit path
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const envPath = path.resolve(__dirname, '../.env');
+dotenv.config({ path: envPath });
+console.log('In index.js - Loading .env from:', envPath);
+console.log('In index.js - MONGO_URI exists:', !!process.env.MONGO_URI);
+console.log('In index.js - MONGO_URI value:', process.env.MONGO_URI);
+
+// ES module workaround for __dirname
+const __filename2 = fileURLToPath(import.meta.url);
+const __dirname2 = path.dirname(__filename2);
 
 // Initialize Express app
 const app = express();

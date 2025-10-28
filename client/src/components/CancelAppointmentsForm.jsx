@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FaCalendarAlt, FaClock, FaUser, FaSun, FaMoon, FaBusinessTime } from 'react-icons/fa';
+import { FaCalendarAlt, FaClock, FaUser, FaSun, FaMoon, FaBusinessTime, FaTrash, FaRedo } from 'react-icons/fa';
 import { cancelAppointmentsByCriteria } from '../services/api';
 
 const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }) => {
@@ -8,12 +8,48 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedAppointments, setSelectedAppointments] = useState([]);
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState([]); // For individual time slot selection
+  const [shouldReschedule, setShouldReschedule] = useState(false); // New state for rescheduling option
 
-  // Get unique dates from appointments with appointment details
+  const formatDateKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const parseDateKey = (dateKey) => {
+    if (!dateKey) {
+      return new Date(NaN);
+    }
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const extractDateKey = (value) => {
+    if (!value) {
+      return '';
+    }
+    if (value instanceof Date) {
+      return formatDateKey(value);
+    }
+    if (typeof value === 'string') {
+      const [datePart] = value.split('T');
+      if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        return datePart;
+      }
+      return formatDateKey(new Date(value));
+    }
+    return '';
+  };
+
   const getAppointmentsByDate = () => {
     const dateMap = {};
     appointments.forEach(apt => {
-      const dateKey = new Date(apt.date).toISOString().split('T')[0];
+      const dateKey = extractDateKey(apt.date);
+      if (!dateKey) {
+        return;
+      }
       if (!dateMap[dateKey]) {
         dateMap[dateKey] = [];
       }
@@ -46,10 +82,26 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
     });
   };
 
-  const handleDateSelect = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+  const handleDateSelect = (day) => {
+    if (!day) return;
+    
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const dateStr = formatDateKey(date);
     setSelectedDate(dateStr);
     setSelectedAppointments(appointmentsByDate[dateStr] || []);
+    setSelectedAvailability('');
+    setSelectedTimeSlots([]); // Reset time slot selection
+  };
+
+  // Handle individual time slot selection
+  const handleTimeSlotSelect = (timeSlot) => {
+    setSelectedTimeSlots(prev => {
+      if (prev.includes(timeSlot)) {
+        return prev.filter(slot => slot !== timeSlot);
+      } else {
+        return [...prev, timeSlot];
+      }
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -57,26 +109,52 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
     setIsSubmitting(true);
 
     try {
-      // Filter appointments based on selected date and availability type
-      let appointmentsToCancel = selectedAppointments;
+      let appointmentsToCancel = [];
 
-      if (selectedAvailability) {
-        appointmentsToCancel = appointmentsToCancel.filter(apt => 
+      // If specific time slots are selected, filter by those
+      if (selectedTimeSlots.length > 0) {
+        appointmentsToCancel = selectedAppointments.filter(apt => 
+          selectedTimeSlots.includes(apt.timeSlot)
+        );
+      } 
+      // If availability type is selected, filter by that
+      else if (selectedAvailability) {
+        appointmentsToCancel = selectedAppointments.filter(apt => 
           apt.availabilityType === selectedAvailability
         );
+      } 
+      // Otherwise, cancel all appointments for the date
+      else {
+        appointmentsToCancel = selectedAppointments;
       }
 
+      // Check if there are appointments to cancel
       if (appointmentsToCancel.length === 0) {
-        alert("No appointments match the selected criteria.");
-        return;
+        // If no appointments match criteria, check if any appointments exist for the date
+        if (selectedAppointments.length === 0) {
+          // No appointments for this date at all
+          alert("There are no appointments scheduled for the selected date.");
+          return;
+        } else {
+          // Appointments exist but none match the selected criteria
+          alert("No appointments match the selected criteria for this date.");
+          return;
+        }
       }
 
       // Confirm with user
-      const availabilityText = selectedAvailability === 'full_day' ? 'Full Day' : 
-                              selectedAvailability === 'morning' ? 'Morning' : 
-                              selectedAvailability === 'evening' ? 'Evening' : 'all';
-      
-      const confirmMessage = `Are you sure you want to cancel ${appointmentsToCancel.length} appointment(s) for ${new Date(selectedDate).toLocaleDateString()} (${availabilityText})? This action cannot be undone and cancellation emails will be sent to patients.`;
+      let confirmMessage = "";
+      if (selectedTimeSlots.length > 0) {
+        confirmMessage = `Are you sure you want to ${shouldReschedule ? 'reschedule' : 'cancel'} ${appointmentsToCancel.length} appointment(s) for the selected time slots on ${parseDateKey(selectedDate).toLocaleDateString()}? ${shouldReschedule ? 'The appointments will be moved to the next available slot and patients will be notified.' : 'This action cannot be undone and cancellation emails will be sent to patients.'}`;
+      } else if (selectedAvailability) {
+        const availabilityText = selectedAvailability === 'full_day' ? 'Full Day' : 
+                                selectedAvailability === 'morning' ? 'Morning' : 
+                                selectedAvailability === 'evening' ? 'Evening' : 'all';
+        confirmMessage = `Are you sure you want to ${shouldReschedule ? 'reschedule' : 'cancel'} ${appointmentsToCancel.length} appointment(s) for ${parseDateKey(selectedDate).toLocaleDateString()} (${availabilityText})? ${shouldReschedule ? 'The appointments will be moved to the next available slot and patients will be notified.' : 'This action cannot be undone and cancellation emails will be sent to patients.'}`;
+      } else {
+        confirmMessage = `Are you sure you want to ${shouldReschedule ? 'reschedule' : 'cancel'} all ${appointmentsToCancel.length} appointment(s) for ${parseDateKey(selectedDate).toLocaleDateString()}? ${shouldReschedule ? 'The appointments will be moved to the next available slot and patients will be notified.' : 'This action cannot be undone and cancellation emails will be sent to patients.'}`;
+      }
+
       if (!window.confirm(confirmMessage)) {
         return;
       }
@@ -84,7 +162,10 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
       // Call the API to cancel appointments by criteria
       const criteria = {
         date: selectedDate,
-        availabilityType: selectedAvailability || undefined
+        availabilityType: selectedAvailability || undefined,
+        timeSlots: selectedTimeSlots.length > 0 ? selectedTimeSlots : undefined,
+        reason: "Cancelled by therapist",
+        shouldReschedule: shouldReschedule
       };
 
       const response = await cancelAppointmentsByCriteria(criteria);
@@ -99,7 +180,7 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
       }
     } catch (error) {
       console.error("Error cancelling appointments:", error);
-      alert("Failed to cancel appointments. Please try again.");
+      alert(`Failed to ${shouldReschedule ? 'reschedule' : 'cancel'} appointments. Please try again. Error: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -112,6 +193,39 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
   const cells = buildMonthMatrix(year, month);
 
   const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Group appointments by availability type and status
+  const groupAppointmentsByAvailability = () => {
+    const grouped = {
+      morning: [],
+      evening: [],
+      full_day: [],
+      scheduled: []
+    };
+
+    selectedAppointments.forEach(apt => {
+      // Show both scheduled and rescheduled appointments for cancellation/rescheduling
+      if (apt.status === 'scheduled' || apt.status === 'rescheduled') {
+        switch (apt.availabilityType) {
+          case 'morning':
+            grouped.morning.push(apt);
+            break;
+          case 'evening':
+            grouped.evening.push(apt);
+            break;
+          case 'full_day':
+            grouped.full_day.push(apt);
+            break;
+          default:
+            grouped.scheduled.push(apt);
+        }
+      }
+    });
+
+    return grouped;
+  };
+
+  const groupedAppointments = groupAppointmentsByAvailability();
 
   return (
     <div style={{
@@ -131,7 +245,7 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
         backgroundColor: 'white',
         borderRadius: '12px',
         width: '100%',
-        maxWidth: '900px',
+        maxWidth: '1000px',
         maxHeight: '90vh',
         overflowY: 'auto',
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
@@ -241,27 +355,26 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                       return <div key={index} style={{ padding: '10px 0' }}></div>;
                     }
                     
-                    const date = new Date(year, month, day);
-                    const dateStr = date.toISOString().split('T')[0];
+                    const dateStr = formatDateKey(new Date(year, month, day));
                     const hasAppointments = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
+                    const isSelected = selectedDate === dateStr;
                     
                     return (
                       <button
                         key={index}
-                        onClick={() => handleDateSelect(date)}
+                        onClick={() => handleDateSelect(day)}
                         style={{
                           padding: '10px 0',
                           border: 'none',
-                          background: selectedDate === dateStr ? '#3b82f6' : 
+                          background: isSelected ? '#3b82f6' : 
                                    hasAppointments ? '#dbeafe' : 'transparent',
-                          color: selectedDate === dateStr ? 'white' : 
+                          color: isSelected ? 'white' : 
                                  hasAppointments ? '#1e3a8a' : '#64748b',
                           borderRadius: '6px',
-                          cursor: hasAppointments ? 'pointer' : 'default',
+                          cursor: 'pointer',
                           fontWeight: hasAppointments ? '600' : 'normal',
                           position: 'relative'
                         }}
-                        disabled={!hasAppointments}
                       >
                         {day}
                         {hasAppointments && (
@@ -295,8 +408,8 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                   color: '#1e40af',
                   textAlign: 'center'
                 }}>
-                  <strong>Instructions:</strong> Click on any date with a blue dot to select it. 
-                  Only dates with appointments are selectable.
+                  <strong>Instructions:</strong> Click on any date to select it. 
+                  Dates with appointments are highlighted with a blue dot.
                 </p>
               </div>
 
@@ -309,7 +422,7 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                   border: '1px solid #e5e7eb'
                 }}>
                   <h4 style={{ margin: '0 0 15px 0', color: '#1e3a8a' }}>
-                    Appointments on {new Date(selectedDate).toLocaleDateString('en-US', { 
+                    Appointments on {parseDateKey(selectedDate).toLocaleDateString('en-US', { 
                       weekday: 'long', 
                       year: 'numeric', 
                       month: 'long', 
@@ -317,46 +430,280 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                     })}
                   </h4>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {selectedAppointments.map((apt, index) => (
-                      <div 
-                        key={index}
-                        style={{
-                          padding: '12px',
+                  {selectedAppointments.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      {/* Show warning if there are rescheduled appointments */}
+                      {selectedAppointments.some(apt => apt.status === 'rescheduled') && (
+                        <div style={{ 
+                          padding: '12px', 
+                          backgroundColor: '#fffbeb', 
+                          borderRadius: '8px', 
+                          border: '1px solid #f59e0b',
+                          marginBottom: '15px'
+                        }}>
+                          <p style={{ margin: 0, color: '#92400e', fontSize: '0.9rem' }}>
+                            <strong>Note:</strong> Some appointments on this date have already been rescheduled. You can cancel or reschedule them again if needed.
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Morning Appointments */}
+                      {groupedAppointments.morning.length > 0 && (
+                        <div style={{ 
+                          border: '1px solid #d1d5db', 
                           borderRadius: '8px',
-                          border: '1px solid #d1d5db',
                           background: 'white'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                              <FaClock style={{ color: '#3b82f6' }} />
-                              <span style={{ fontWeight: '600' }}>{apt.timeSlot}</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <FaUser style={{ color: '#10b981' }} />
-                              <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
-                                {apt.userId?.name || 'Patient'}
-                              </span>
-                            </div>
-                          </div>
-                          <div style={{
-                            padding: '4px 10px',
-                            borderRadius: '20px',
-                            background: '#10b981',
-                            color: 'white',
-                            fontSize: '0.8rem',
-                            fontWeight: '600'
+                        }}>
+                          <div style={{ 
+                            padding: '10px 15px',
+                            borderBottom: '1px solid #d1d5db',
+                            background: '#fffbeb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                           }}>
-                            {apt.availabilityType === 'full_day' ? 'Full Day' : 
-                             apt.availabilityType === 'morning' ? 'Morning' : 
-                             apt.availabilityType === 'evening' ? 'Evening' : 'Scheduled'}
+                            <FaSun style={{ color: '#f59e0b' }} />
+                            <span style={{ fontWeight: '600', color: '#92400e' }}>Morning Appointments</span>
+                          </div>
+                          <div style={{ padding: '10px' }}>
+                            {groupedAppointments.morning.map((apt, index) => (
+                              <div 
+                                key={index}
+                                onClick={() => handleTimeSlotSelect(apt.timeSlot)}
+                                style={{
+                                  padding: '8px',
+                                  borderRadius: '6px',
+                                  border: selectedTimeSlots.includes(apt.timeSlot) ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                                  background: selectedTimeSlots.includes(apt.timeSlot) ? '#dbeafe' : 'white',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: '5px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <FaClock style={{ color: '#3b82f6' }} />
+                                  <span style={{ fontWeight: '500' }}>{apt.timeSlot}</span>
+                                  <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                    {apt.userId?.name || 'Patient'}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  {selectedTimeSlots.includes(apt.timeSlot) && (
+                                    <span style={{ 
+                                      fontSize: '0.7rem', 
+                                      background: '#3b82f6', 
+                                      color: 'white', 
+                                      padding: '2px 6px', 
+                                      borderRadius: '4px' 
+                                    }}>
+                                      Selected
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+
+                      {/* Evening Appointments */}
+                      {groupedAppointments.evening.length > 0 && (
+                        <div style={{ 
+                          border: '1px solid #d1d5db', 
+                          borderRadius: '8px',
+                          background: 'white'
+                        }}>
+                          <div style={{ 
+                            padding: '10px 15px',
+                            borderBottom: '1px solid #d1d5db',
+                            background: '#e0f2fe',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}>
+                            <FaMoon style={{ color: '#0ea5e9' }} />
+                            <span style={{ fontWeight: '600', color: '#0c4a6e' }}>Evening Appointments</span>
+                          </div>
+                          <div style={{ padding: '10px' }}>
+                            {groupedAppointments.evening.map((apt, index) => (
+                              <div 
+                                key={index}
+                                onClick={() => handleTimeSlotSelect(apt.timeSlot)}
+                                style={{
+                                  padding: '8px',
+                                  borderRadius: '6px',
+                                  border: selectedTimeSlots.includes(apt.timeSlot) ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                                  background: selectedTimeSlots.includes(apt.timeSlot) ? '#dbeafe' : 'white',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: '5px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <FaClock style={{ color: '#3b82f6' }} />
+                                  <span style={{ fontWeight: '500' }}>{apt.timeSlot}</span>
+                                  <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                    {apt.userId?.name || 'Patient'}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  {selectedTimeSlots.includes(apt.timeSlot) && (
+                                    <span style={{ 
+                                      fontSize: '0.7rem', 
+                                      background: '#3b82f6', 
+                                      color: 'white', 
+                                      padding: '2px 6px', 
+                                      borderRadius: '4px' 
+                                    }}>
+                                      Selected
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Full Day Appointments */}
+                      {groupedAppointments.full_day.length > 0 && (
+                        <div style={{ 
+                          border: '1px solid #d1d5db', 
+                          borderRadius: '8px',
+                          background: 'white'
+                        }}>
+                          <div style={{ 
+                            padding: '10px 15px',
+                            borderBottom: '1px solid #d1d5db',
+                            background: '#dcfce7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}>
+                            <FaBusinessTime style={{ color: '#22c55e' }} />
+                            <span style={{ fontWeight: '600', color: '#14532d' }}>Full Day Appointments</span>
+                          </div>
+                          <div style={{ padding: '10px' }}>
+                            {groupedAppointments.full_day.map((apt, index) => (
+                              <div 
+                                key={index}
+                                onClick={() => handleTimeSlotSelect(apt.timeSlot)}
+                                style={{
+                                  padding: '8px',
+                                  borderRadius: '6px',
+                                  border: selectedTimeSlots.includes(apt.timeSlot) ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                                  background: selectedTimeSlots.includes(apt.timeSlot) ? '#dbeafe' : 'white',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: '5px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <FaClock style={{ color: '#3b82f6' }} />
+                                  <span style={{ fontWeight: '500' }}>{apt.timeSlot}</span>
+                                  <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                    {apt.userId?.name || 'Patient'}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  {selectedTimeSlots.includes(apt.timeSlot) && (
+                                    <span style={{ 
+                                      fontSize: '0.7rem', 
+                                      background: '#3b82f6', 
+                                      color: 'white', 
+                                      padding: '2px 6px', 
+                                      borderRadius: '4px' 
+                                    }}>
+                                      Selected
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Scheduled Appointments */}
+                      {groupedAppointments.scheduled.length > 0 && (
+                        <div style={{ 
+                          border: '1px solid #d1d5db', 
+                          borderRadius: '8px',
+                          background: 'white'
+                        }}>
+                          <div style={{ 
+                            padding: '10px 15px',
+                            borderBottom: '1px solid #d1d5db',
+                            background: '#f3e8ff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}>
+                            <FaClock style={{ color: '#a855f7' }} />
+                            <span style={{ fontWeight: '600', color: '#581c87' }}>Scheduled Appointments</span>
+                          </div>
+                          <div style={{ padding: '10px' }}>
+                            {groupedAppointments.scheduled.map((apt, index) => (
+                              <div 
+                                key={index}
+                                onClick={() => handleTimeSlotSelect(apt.timeSlot)}
+                                style={{
+                                  padding: '8px',
+                                  borderRadius: '6px',
+                                  border: selectedTimeSlots.includes(apt.timeSlot) ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                                  background: selectedTimeSlots.includes(apt.timeSlot) ? '#dbeafe' : 'white',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: '5px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <FaClock style={{ color: '#3b82f6' }} />
+                                  <span style={{ fontWeight: '500' }}>{apt.timeSlot}</span>
+                                  <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                    {apt.userId?.name || 'Patient'}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  {selectedTimeSlots.includes(apt.timeSlot) && (
+                                    <span style={{ 
+                                      fontSize: '0.7rem', 
+                                      background: '#3b82f6', 
+                                      color: 'white', 
+                                      padding: '2px 6px', 
+                                      borderRadius: '4px' 
+                                    }}>
+                                      Selected
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      padding: '20px', 
+                      backgroundColor: '#fffbeb', 
+                      borderRadius: '8px',
+                      border: '1px dashed #f59e0b'
+                    }}>
+                      <p style={{ margin: 0, color: '#92400e' }}>
+                        No appointments scheduled for this date.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -391,7 +738,10 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                             name="availability"
                             value="full_day"
                             checked={selectedAvailability === 'full_day'}
-                            onChange={(e) => setSelectedAvailability(e.target.value)}
+                            onChange={(e) => {
+                              setSelectedAvailability(e.target.value);
+                              setSelectedTimeSlots([]); // Reset time slot selection
+                            }}
                             style={{ marginRight: '10px' }}
                           />
                           <FaSun style={{ color: '#f59e0b', marginRight: '8px' }} />
@@ -412,7 +762,10 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                             name="availability"
                             value="morning"
                             checked={selectedAvailability === 'morning'}
-                            onChange={(e) => setSelectedAvailability(e.target.value)}
+                            onChange={(e) => {
+                              setSelectedAvailability(e.target.value);
+                              setSelectedTimeSlots([]); // Reset time slot selection
+                            }}
                             style={{ marginRight: '10px' }}
                           />
                           <FaSun style={{ color: '#f59e0b', marginRight: '8px' }} />
@@ -433,7 +786,10 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                             name="availability"
                             value="evening"
                             checked={selectedAvailability === 'evening'}
-                            onChange={(e) => setSelectedAvailability(e.target.value)}
+                            onChange={(e) => {
+                              setSelectedAvailability(e.target.value);
+                              setSelectedTimeSlots([]); // Reset time slot selection
+                            }}
                             style={{ marginRight: '10px' }}
                           />
                           <FaMoon style={{ color: '#6366f1', marginRight: '8px' }} />
@@ -454,7 +810,10 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                             name="availability"
                             value=""
                             checked={selectedAvailability === ''}
-                            onChange={(e) => setSelectedAvailability(e.target.value)}
+                            onChange={(e) => {
+                              setSelectedAvailability(e.target.value);
+                              setSelectedTimeSlots([]); // Reset time slot selection
+                            }}
                             style={{ marginRight: '10px' }}
                           />
                           <FaBusinessTime style={{ color: '#10b981', marginRight: '8px' }} />
@@ -463,6 +822,57 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                       </div>
                     </div>
 
+                    {/* Rescheduling Option */}
+                    <div style={{ 
+                      marginBottom: '20px',
+                      padding: '15px',
+                      backgroundColor: '#f0f9ff',
+                      borderRadius: '8px',
+                      border: '1px solid #bae6fd'
+                    }}>
+                      <label style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer'
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={shouldReschedule}
+                          onChange={(e) => setShouldReschedule(e.target.checked)}
+                          style={{ marginRight: '10px' }}
+                        />
+                        <FaRedo style={{ color: '#0ea5e9', marginRight: '8px' }} />
+                        <span style={{ fontWeight: '500', color: '#0c4a6e' }}>
+                          Automatically reschedule to next available slot
+                        </span>
+                      </label>
+                      <p style={{ 
+                        margin: '8px 0 0 28px', 
+                        fontSize: '0.85rem', 
+                        color: '#0c4a6e' 
+                      }}>
+                        {shouldReschedule 
+                          ? "Appointments will be moved to the next available slot and patients will be notified via email." 
+                          : "Check this box to automatically reschedule appointments to the next available slot instead of cancelling them."}
+                      </p>
+                    </div>
+
+                    {/* Individual Time Slot Selection Info */}
+                    {selectedTimeSlots.length > 0 && (
+                      <div style={{ 
+                        padding: '12px', 
+                        backgroundColor: '#eff6ff', 
+                        borderRadius: '8px', 
+                        marginBottom: '15px',
+                        border: '1px solid #93c5fd'
+                      }}>
+                        <p style={{ margin: 0, color: '#1e40af', fontSize: '0.9rem' }}>
+                          <strong>{selectedTimeSlots.length}</strong> individual time slot(s) selected for {shouldReschedule ? 'rescheduling' : 'cancellation'}.
+                          These will be processed instead of the availability type selection above.
+                        </p>
+                      </div>
+                    )}
+
                     <div style={{ 
                       padding: '16px', 
                       backgroundColor: '#f0f9ff', 
@@ -470,19 +880,47 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                       marginBottom: '20px' 
                     }}>
                       <p style={{ margin: 0, color: '#0369a1', fontSize: '0.9rem' }}>
-                        <strong>{selectedAppointments.filter(apt => 
-                          selectedAvailability ? apt.availabilityType === selectedAvailability : true
-                        ).length}</strong> appointment(s) will be cancelled for{' '}
-                        {new Date(selectedDate).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                        {selectedAvailability && (
-                          <span> ({selectedAvailability === 'full_day' ? 'Full Day' : 
-                                  selectedAvailability === 'morning' ? 'Morning' : 'Evening'})
-                          </span>
+                        {selectedAppointments.length > 0 ? (
+                          <>
+                            {selectedTimeSlots.length > 0 ? (
+                              <>
+                                <strong>{selectedTimeSlots.length}</strong> time slot(s) will be {shouldReschedule ? 'rescheduled' : 'cancelled'} for{' '}
+                                {parseDateKey(selectedDate).toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                              </>
+                            ) : selectedAvailability ? (
+                              <>
+                                <strong>{selectedAppointments.filter(apt => 
+                                  selectedAvailability ? apt.availabilityType === selectedAvailability : true
+                                ).length}</strong> appointment(s) will be {shouldReschedule ? 'rescheduled' : 'cancelled'} for{' '}
+                                {parseDateKey(selectedDate).toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                                <span> ({selectedAvailability === 'full_day' ? 'Full Day' : 
+                                        selectedAvailability === 'morning' ? 'Morning' : 'Evening'})
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <strong>{selectedAppointments.length}</strong> appointment(s) will be {shouldReschedule ? 'rescheduled' : 'cancelled'} for{' '}
+                                {parseDateKey(selectedDate).toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <>No appointments scheduled for {parseDateKey(selectedDate).toLocaleDateString()}.</>
                         )}
                       </p>
                     </div>
@@ -497,10 +935,10 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                   }}>
                     <FaCalendarAlt style={{ fontSize: '2rem', color: '#94a3b8', marginBottom: '15px' }} />
                     <p style={{ margin: '0 0 15px 0', color: '#64748b' }}>
-                      Please select a date with appointments from the calendar
+                      Please select a date from the calendar
                     </p>
                     <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>
-                      Only dates with appointments (marked with blue dots) are selectable
+                      You can select any date, even those without appointments
                     </p>
                   </div>
                 )}
@@ -538,7 +976,7 @@ const CancelAppointmentsForm = ({ therapistId, appointments, onCancel, onClose }
                       opacity: selectedDate ? 1 : 0.5
                     }}
                   >
-                    {isSubmitting ? 'Cancelling...' : 'Cancel Appointments'}
+                    {isSubmitting ? (shouldReschedule ? 'Rescheduling...' : 'Cancelling...') : (shouldReschedule ? 'Reschedule Appointments' : 'Cancel Appointments')}
                   </button>
                 </div>
               </form>

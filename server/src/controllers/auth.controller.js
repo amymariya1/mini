@@ -6,6 +6,9 @@ import User from '../models/User.js';
 import { findByEmail, createUser, setUserResetToken, findByResetTokenHash, clearUserResetToken } from '../utils/userStore.js';
 import { sendResetEmail, sendWelcomeEmail } from '../utils/mailer.js'; // Import the email functions
 
+const rawJwtSecret = process.env.JWT_SECRET || process.env.JWT_FALLBACK_SECRET || '';
+const JWT_SECRET = rawJwtSecret.trim() || 'mindmirror-secret';
+
 // Utils
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -13,9 +16,13 @@ function hashToken(token) {
 
 // Generate JWT token
 function generateToken(userId) {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+  console.log('Generating token for user:', userId);
+  console.log('JWT_SECRET:', JWT_SECRET);
+  const token = jwt.sign({ id: userId }, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '30d'
   });
+  console.log('Generated token:', token);
+  return token;
 }
 
 export async function register(req, res) {
@@ -109,11 +116,13 @@ export async function register(req, res) {
 export async function login(req, res) {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt with email:', email);
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
     const user = await findByEmail(email);
+    console.log('User found:', user);
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -129,15 +138,17 @@ export async function login(req, res) {
     }
 
     const ok = await bcrypt.compare(password, user.passwordHash);
+    console.log('Password match:', ok);
     if (!ok) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Generate JWT token
     const token = generateToken(user._id);
+    console.log('Generated token for login response:', token);
 
     // Include userType, age, and approval status in response
-    return res.json({ 
+    const response = { 
       token,
       user: { 
         id: user._id, 
@@ -147,7 +158,9 @@ export async function login(req, res) {
         userType: user.userType,
         isApproved: user.isApproved
       } 
-    });
+    };
+    console.log('Login response:', response);
+    return res.json(response);
   } catch (err) {
     console.error('Login error', err);
     return res.status(500).json({ message: 'Server error' });

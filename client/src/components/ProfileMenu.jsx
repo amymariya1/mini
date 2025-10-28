@@ -33,6 +33,7 @@ export default function ProfileMenu({ user }) {
       }
     } catch (_) {}
     localStorage.removeItem("mm_user");
+    localStorage.removeItem("mm_token"); // Remove JWT token
     setOpen(false);
     navigate("/");
   }

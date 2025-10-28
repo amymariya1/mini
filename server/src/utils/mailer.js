@@ -1161,6 +1161,127 @@ The ${appName} Team
   }
 }
 
+// Function to send appointment rescheduling emails
+export async function sendReschedulingEmail(to, reschedulingDetails) {
+  const appName = process.env.APP_NAME || 'MindMirror';
+  const from = process.env.MAIL_FROM || 'amymariya4@gmail.com'; // Use the specified email
+
+  const subject = `${appName} - Appointment Rescheduled`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; }
+        .section { margin-bottom: 25px; }
+        .section-title { color: #f59e0b; font-size: 18px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px; }
+        .detail-row { margin: 8px 0; }
+        .detail-label { font-weight: bold; color: #555; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; color: #666; font-size: 14px; }
+        .highlight-box { background: #fffbeb; padding: 15px; border-left: 4px solid #f59e0b; margin: 15px 0; }
+        .new-appointment-box { background: #f0f9ff; padding: 15px; border-left: 4px solid #3b82f6; margin: 15px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0; font-size: 28px;">📅 Appointment Rescheduled</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your therapy session has been rescheduled</p>
+        </div>
+        
+        <div class="content">
+          <p style="font-size: 16px; margin-bottom: 20px;">Dear ${reschedulingDetails.patientName},</p>
+          <p>We're writing to inform you that your therapy session with ${reschedulingDetails.therapistName} has been rescheduled.</p>
+          
+          <div class="highlight-box">
+            <div class="section-title">📅 Original Appointment Details</div>
+            <div class="detail-row"><span class="detail-label">Therapist:</span> ${reschedulingDetails.therapistName}</div>
+            <div class="detail-row"><span class="detail-label">Original Date:</span> ${reschedulingDetails.originalDate}</div>
+            <div class="detail-row"><span class="detail-label">Original Time:</span> ${reschedulingDetails.originalTime}</div>
+          </div>
+          
+          <div class="new-appointment-box">
+            <div class="section-title">🆕 New Appointment Details</div>
+            <div class="detail-row"><span class="detail-label">New Date:</span> ${reschedulingDetails.newDate}</div>
+            <div class="detail-row"><span class="detail-label">New Time:</span> ${reschedulingDetails.newTime}</div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">📝 Reason for Rescheduling</div>
+            <p>${reschedulingDetails.reason}</p>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">🔁 Next Steps</div>
+            <p>Your appointment has been automatically rescheduled to the new time slot. If you're unable to attend this new appointment, please contact your therapist or our support team to make further changes.</p>
+            <p>If you have any questions or concerns, please don't hesitate to reach out to us.</p>
+          </div>
+          
+          <p style="margin-top: 25px;">We apologize for any inconvenience this may cause and appreciate your understanding.</p>
+        </div>
+        
+        <div class="footer">
+          <p style="margin: 0 0 10px 0;"><strong>Best regards,</strong></p>
+          <p style="margin: 0;">The ${appName} Team</p>
+          <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">This is an automated notification email. Please do not reply to this message.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Dear ${reschedulingDetails.patientName},
+
+We're writing to inform you that your therapy session with ${reschedulingDetails.therapistName} has been rescheduled.
+
+Original Appointment Details:
+Therapist: ${reschedulingDetails.therapistName}
+Original Date: ${reschedulingDetails.originalDate}
+Original Time: ${reschedulingDetails.originalTime}
+
+New Appointment Details:
+New Date: ${reschedulingDetails.newDate}
+New Time: ${reschedulingDetails.newTime}
+
+Reason for Rescheduling:
+${reschedulingDetails.reason}
+
+Next Steps:
+Your appointment has been automatically rescheduled to the new time slot. If you're unable to attend this new appointment, please contact your therapist or our support team to make further changes.
+
+If you have any questions or concerns, please don't hesitate to reach out to us.
+
+We apologize for any inconvenience this may cause and appreciate your understanding.
+
+Best regards,
+The ${appName} Team
+  `;
+
+  console.log(`Mailer: Attempting to send rescheduling email to ${to}`);
+  
+  try {
+    const transporter = await transporterPromise;
+    const info = await transporter.sendMail({ from, to, subject, text, html });
+    console.log(`Mailer: Rescheduling email sent successfully to ${to}. Message ID: ${info.messageId}`);
+
+    // If using Ethereal, print the preview URL to the console
+    const previewUrl = nodemailer.getTestMessageUrl?.(info);
+    if (previewUrl) {
+      console.log('Ethereal preview URL:', previewUrl);
+    }
+    
+    return info;
+  } catch (error) {
+    console.error(`Mailer: Failed to send rescheduling email to ${to}. Error:`, error.message);
+    throw error;
+  }
+}
+
 // Function to send appointment cancellation emails
 export async function sendCancellationEmail(to, cancellationDetails) {
   const appName = process.env.APP_NAME || 'MindMirror';

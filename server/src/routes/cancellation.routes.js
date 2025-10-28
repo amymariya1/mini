@@ -5,8 +5,13 @@ import {
   getUserCancellations,
   cancelAppointmentsByCriteria
 } from "../controllers/cancellation.controller.js";
+import { authenticateJWT, protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+// Using protect middleware which can handle both JWT tokens and header-based authentication
+router.use(protect);
 
 // Create a new cancellation
 router.post("/", createCancellation);

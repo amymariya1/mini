@@ -114,10 +114,13 @@ export async function listJournal(params = {}) {
 }
 
 export async function login(payload) {
-  return request('/auth/login', {
+  console.log('API: Attempting login with payload:', payload);
+  const response = await request('/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  console.log('API: Login response:', response);
+  return response;
 }
 
 export async function register(payload) {
@@ -1110,15 +1113,50 @@ export async function deleteUpcomingPatient(id) {
   }
 }
 
-// Cancel multiple appointments by date and availability type
 export async function cancelAppointmentsByCriteria(criteria) {
   try {
+    console.log("API: Attempting to cancel appointments by criteria");
+    
+    // Check what's in localStorage
+    const userRaw = localStorage.getItem("mm_user");
+    console.log("API: User data from localStorage:", userRaw);
+    
     const token = localStorage.getItem("mm_token");
+    console.log("API: Retrieved token from localStorage:", token);
+    
+    // Get user data for header-based authentication
+    let user = null;
+    if (userRaw) {
+      try {
+        user = JSON.parse(userRaw);
+        console.log("API: Parsed user data:", user);
+      } catch (parseError) {
+        console.error("API: Error parsing user data:", parseError);
+      }
+    }
+    
+    // Construct headers
+    const headers = {};
+    
+    // If we have a JWT token, use it
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    // If we have user data, include email and user ID headers for protect middleware
+    if (user?.email) {
+      headers["x-user-email"] = user.email;
+    }
+    if (user?.id) {
+      headers["x-user-id"] = user.id;
+    }
+    
+    console.log("API: Headers for cancellations request:", headers);
+    
+    // Pass headers correctly to request function
     return await request("/cancellations/bulk", {
       method: "POST",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      },
+      headers: headers,
       body: JSON.stringify(criteria)
     });
   } catch (error) {
@@ -1130,13 +1168,39 @@ export async function cancelAppointmentsByCriteria(criteria) {
 // Get therapist cancellations
 export async function getTherapistCancellations(therapistId) {
   try {
+    // Get user data for header-based authentication
+    const userRaw = localStorage.getItem("mm_user");
+    let user = null;
+    if (userRaw) {
+      try {
+        user = JSON.parse(userRaw);
+      } catch (parseError) {
+        console.error("API: Error parsing user data:", parseError);
+      }
+    }
+    
     const token = localStorage.getItem("mm_token");
+    
+    // Construct headers
+    const headers = {};
+    
+    // If we have a JWT token, use it
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    // If we have user data, include email and user ID headers for protect middleware
+    if (user?.email) {
+      headers["x-user-email"] = user.email;
+    }
+    if (user?.id) {
+      headers["x-user-id"] = user.id;
+    }
+    
     const params = new URLSearchParams({ therapistId }).toString();
     return await request(`/cancellations/therapist?${params}`, {
       method: "GET",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      }
+      headers: headers
     });
   } catch (error) {
     console.error("Error getting therapist cancellations:", error);
@@ -1147,13 +1211,39 @@ export async function getTherapistCancellations(therapistId) {
 // Get user cancellations
 export async function getUserCancellations(userId) {
   try {
+    // Get user data for header-based authentication
+    const userRaw = localStorage.getItem("mm_user");
+    let user = null;
+    if (userRaw) {
+      try {
+        user = JSON.parse(userRaw);
+      } catch (parseError) {
+        console.error("API: Error parsing user data:", parseError);
+      }
+    }
+    
     const token = localStorage.getItem("mm_token");
+    
+    // Construct headers
+    const headers = {};
+    
+    // If we have a JWT token, use it
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    // If we have user data, include email and user ID headers for protect middleware
+    if (user?.email) {
+      headers["x-user-email"] = user.email;
+    }
+    if (user?.id) {
+      headers["x-user-id"] = user.id;
+    }
+    
     const params = new URLSearchParams({ userId }).toString();
     return await request(`/cancellations/user?${params}`, {
       method: "GET",
-      headers: {
-        ...(token && { "Authorization": `Bearer ${token}` })
-      }
+      headers: headers
     });
   } catch (error) {
     console.error("Error getting user cancellations:", error);

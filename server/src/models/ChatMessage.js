@@ -46,12 +46,20 @@ chatMessageSchema.index({ read: 1 });
 
 // Create roomId from sender and recipient IDs (always consistent order)
 chatMessageSchema.pre('save', function(next) {
+  console.log("ChatMessage pre-save hook called");
+  console.log("Sender:", this.sender);
+  console.log("Recipient:", this.recipient);
+  console.log("RoomId before:", this.roomId);
+  
   if (!this.roomId) {
     const ids = [this.sender.toString(), this.recipient.toString()].sort();
     this.roomId = `${ids[0]}_${ids[1]}`;
+    console.log("Generated roomId:", this.roomId);
   }
   next();
 });
 
-export default mongoose.model('ChatMessage', chatMessageSchema);
+// Ensure the model is compiled only once
+const ChatMessage = mongoose.models.ChatMessage || mongoose.model('ChatMessage', chatMessageSchema);
 
+export default ChatMessage;

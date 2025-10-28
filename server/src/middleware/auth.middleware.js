@@ -5,15 +5,19 @@ import User from '../models/User.js';
 // JWT Authentication middleware
 export async function authenticateJWT(req, res, next) {
   try {
+    console.log('Authentication middleware called');
+    console.log('Authorization header:', req.headers.authorization);
     let token;
 
     // Check for token in Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
+      console.log('Token extracted from header:', token);
     }
 
     // If no token found, return error
     if (!token) {
+      console.log('No token found in request');
       return res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
@@ -21,10 +25,13 @@ export async function authenticateJWT(req, res, next) {
     }
 
     // Verify token
+    console.log('Verifying token with JWT_SECRET');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Decoded token:', decoded);
 
     // Find user by ID from token
     const user = await User.findById(decoded.id);
+    console.log('User found from token:', user);
 
     if (!user) {
       return res.status(401).json({

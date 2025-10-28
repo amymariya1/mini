@@ -4,38 +4,55 @@ import ChatMessage from "../models/ChatMessage.js";
 // Send a message
 export async function sendMessage(req, res) {
   try {
+    console.log("Chat controller: sendMessage called");
+    console.log("Request body:", req.body);
+    console.log("Request user:", req.user);
+    
     const { recipientId, message } = req.body;
     const sender = req.user; // From auth middleware
 
     // Validate input
     if (!recipientId || !message) {
+      console.log("Chat controller: Missing recipientId or message");
       return res.status(400).json({ 
         success: false, 
         message: "recipientId and message are required" 
       });
     }
 
+    console.log("Chat controller: Validating recipient");
     // Verify recipient exists
     const recipient = await User.findById(recipientId);
     if (!recipient) {
+      console.log("Chat controller: Recipient not found");
       return res.status(404).json({
         success: false,
         message: "Recipient not found"
       });
     }
 
+    console.log("Chat controller: Creating message");
+    // Generate roomId from sender and recipient IDs
+    const ids = [sender._id.toString(), recipientId].sort();
+    const roomId = `${ids[0]}_${ids[1]}`;
+    console.log("Chat controller: Generated roomId:", roomId);
+    
     // Create and save message to database
     const newMessage = new ChatMessage({
       sender: sender._id,
       recipient: recipientId,
-      message: message.trim()
+      message: message.trim(),
+      roomId: roomId  // Explicitly set roomId
     });
 
+    console.log("Chat controller: Saving message");
     await newMessage.save();
 
+    console.log("Chat controller: Populating sender");
     // Populate sender information for response
     await newMessage.populate('sender', 'name email');
 
+    console.log("Chat controller: Sending success response");
     res.status(201).json({ 
       success: true, 
       message: "Message sent successfully",
